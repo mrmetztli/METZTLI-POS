@@ -1,18 +1,19 @@
-
-name: Generar APK - METZTLI POS
+name: Generar APK firmado - METZTLI Caja
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+    tags:
+      - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
-    name: Compilar aplicación Android
+    name: Compilar APK de publicación
     runs-on: ubuntu-latest
 
     steps:
@@ -35,6 +36,31 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
+      - name: Verificar secretos de firma
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Falta configurar el secreto de GitHub: $name. Consulta docs/ANDROID-RELEASE.md."
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ]
+
+      - name: Preparar clave de firma
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/metztli-release.jks"
+          test -s "$RUNNER_TEMP/metztli-release.jks"
+
       - name: Instalar dependencias
         run: npm install
 
@@ -44,18 +70,98 @@ jobs:
             npx cap add android
           fi
 
-      - name: Sincronizar METZTLI POS
+      - name: Sincronizar METZTLI Caja
         run: npx cap sync android
 
-      - name: Generar APK
+      - name: Configurar versión y firma de publicación
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/metztli-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          python3 <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          package = json.loads(Path("package.json").read_text(encoding="utf-8"))
+          version_name = package["version"]
+          version_code = int(Path("android-version-code.txt").read_text(encoding="utf-8").strip())
+          if version_code < 1:
+              raise SystemExit("android-version-code.txt debe contener un entero mayor que cero")
+
+          gradle = Path("android/app/build.gradle")
+          source = gradle.read_text(encoding="utf-8")
+
+          match = re.search(r"(defaultConfig\\s*\\{)(.*?)(\\n\\s*\\})", source, re.S)
+          if not match:
+              raise SystemExit("No se encontró defaultConfig en android/app/build.gradle")
+          body = match.group(2)
+          for key, value in (("versionCode", str(version_code)), ("versionName", json.dumps(version_name))):
+              prop = re.compile(r"^\\s*" + key + r"\\s+.*$", re.M)
+              line = f"        {key} {value}"
+              if prop.search(body):
+                  body = prop.sub(line, body)
+              else:
+                  body += "\\n" + line
+          source = source[:match.start(2)] + body + source[match.end(2):]
+
+          signing = """
+          signingConfigs {
+              release {
+                  storeFile file(System.getenv("ANDROID_KEYSTORE_FILE"))
+                  storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                  keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                  keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+              }
+          }
+          """
+          if "signingConfigs {" not in source:
+              if "buildTypes {" not in source:
+                  raise SystemExit("No se encontró buildTypes en android/app/build.gradle")
+              source = source.replace("buildTypes {", signing + "\\nbuildTypes {", 1)
+
+          release_match = re.search(r"(buildTypes\\s*\\{[\\s\\S]*?\\brelease\\s*\\{)", source)
+          if not release_match:
+              raise SystemExit("No se encontró buildTypes.release en android/app/build.gradle")
+          tail = source[release_match.end():]
+          if not re.search(r"signingConfig\\s+signingConfigs\\.release", tail):
+              source = source[:release_match.end()] + "\\n            signingConfig signingConfigs.release" + source[release_match.end():]
+
+          gradle.write_text(source, encoding="utf-8")
+          print(f"Configurado METZTLI Caja {version_name} (versionCode {version_code})")
+          PY
+
+      - name: Generar APK firmado
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
-      - name: Guardar APK
+      - name: Preparar nombre del APK
+        id: meta
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          CODE=$(cat android-version-code.txt)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          cp android/app/build/outputs/apk/release/app-release.apk "METZTLI-Caja-v${VERSION}.apk"
+
+      - name: Guardar APK como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: METZTLI-POS-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: METZTLI-Caja-v${{ steps.meta.outputs.version }}-release
+          path: METZTLI-Caja-v${{ steps.meta.outputs.version }}.apk
           if-no-files-found: error
+          retention-days: 90
+
+      - name: Publicar GitHub Release al crear una etiqueta v*
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: METZTLI-Caja-v${{ steps.meta.outputs.version }}.apk
+          generate_release_notes: true
