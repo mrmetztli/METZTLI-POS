@@ -1,0 +1,74 @@
+/* ===== Clientes ===== */
+
+.client-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  border: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.client-row:hover {
+  transform: translateY(-2px);
+}
+.client-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 160px;
+}
+.client-name {
+  font-size: 1.05rem;
+}
+.client-stats {
+  display: flex;
+  gap: 18px;
+  flex: none;
+}
+.client-stats > span {
+  display: grid;
+  gap: 2px;
+  text-align: right;
+}
+.client-stats strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.client-kpis {
+  margin-top: 4px;
+}
+.client-kpis .kpi {
+  background: var(--grad-purple);
+  color: #fff;
+}
+.client-kpis .kpi:nth-child(2) {
+  background: var(--grad-cyan);
+  color: #fff;
+}
+.client-kpis .kpi .muted {
+  color: rgba(255,255,255,0.85);
+}
+
+.client-sale {
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+}
+.client-sale-items {
+  margin: 0;
+  line-height: 1.35;
+}
+
+@media (max-width: 520px) {
+  .client-stats {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .client-stats > span { text-align: left; }
+}

@@ -1,0 +1,9 @@
+{
+  "appId": "mx.metztli.caja",
+  "appName": "METZTLI Caja",
+  "webDir": "caja",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

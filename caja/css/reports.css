@@ -1,0 +1,135 @@
+/* ===== Reportes — Claymorphism + filtros desplegables ===== */
+
+.filters {
+  padding: 0;
+  overflow: hidden;
+}
+
+.filters-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 20px;
+  min-height: 52px;
+  user-select: none;
+}
+.filters-summary::-webkit-details-marker { display: none; }
+.filters-summary::marker { content: ''; }
+
+.filters-summary-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 700;
+}
+
+.filters-chevron {
+  width: 10px;
+  height: 10px;
+  border-right: 2.5px solid var(--ink-2);
+  border-bottom: 2.5px solid var(--ink-2);
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+  flex: none;
+}
+.filters[open] .filters-chevron {
+  transform: rotate(225deg);
+  margin-top: 4px;
+}
+
+.filters-summary-hint {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  padding-right: 28px;
+}
+
+.filters-body {
+  padding: 4px 20px 18px;
+  border-top: 1px solid var(--line);
+}
+
+.filters > summary {
+  cursor: pointer;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+
+.table-wrap { overflow-x: auto; border-radius: var(--radius); }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.table th,
+.table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.table thead th {
+  font-weight: 700;
+  color: var(--ink-2);
+  font-size: 0.82rem;
+  text-transform: none;
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+.table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+.table tfoot th {
+  border-top: 2px solid var(--line);
+  border-bottom: 0;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.print-only { display: none; }
+
+@media print {
+  html, html[data-theme="dark"] {
+    --ink: #000;
+    --ink-2: #444;
+    --bg: #fff;
+    --surface: #fff;
+    --line: #bbb;
+    --accent: #A855F7;
+  }
+  body { background: #fff; color: #000; }
+  #nav, .no-print, #toasts, #modal-root { display: none !important; }
+  #app { display: block; }
+  #view { padding: 0; max-width: none; }
+  .print-only { display: block; margin-bottom: 12px; }
+  .card {
+    box-shadow: none !important;
+    border: 0;
+    padding: 0;
+    margin-top: 12px !important;
+  }
+  .kpis { grid-template-columns: repeat(3, 1fr); }
+  .kpi {
+    border: 1px solid #bbb;
+    padding: 10px;
+    border-radius: 12px;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .table { font-size: 11px; }
+  .table th, .table td { padding: 4px 6px; white-space: normal; }
+  .table thead th { position: static; }
+}

@@ -1,0 +1,313 @@
+/* ===== Dashboard — Claymorphism compacto ===== */
+
+/* Cabecera más baja */
+.page-head.dash-head {
+  margin-bottom: 12px;
+  gap: 10px;
+  align-items: flex-start;
+}
+.page-head.dash-head h1 {
+  font-size: 1.35rem;
+  line-height: 1.15;
+}
+.page-head.dash-head .muted {
+  font-size: 0.82rem;
+}
+.page-head.dash-head .row {
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.page-head.dash-head .seg button {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+.page-head.dash-head .btn {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 0.88rem;
+}
+
+/* Atajos en una sola fila compacta */
+.dash-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.dash-shortcuts .btn {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 0.88rem;
+}
+
+.kpis {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+}
+
+.kpi {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  border-radius: 22px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-clay-sm);
+  background: var(--surface);
+  transition: transform 0.15s ease;
+  min-width: 0;
+}
+.kpi:hover { transform: translateY(-2px); }
+
+/* Alternancia de colores en KPIs */
+.kpis .kpi:nth-child(6n+1) {
+  background: var(--grad-purple);
+  color: #FFFFFF;
+}
+.kpis .kpi:nth-child(6n+2) {
+  background: var(--grad-cyan);
+  color: #FFFFFF;
+}
+.kpis .kpi:nth-child(6n+3) {
+  background: var(--grad-violet);
+  color: #FFFFFF;
+}
+.kpis .kpi:nth-child(6n+4) {
+  background: var(--grad-teal);
+  color: #FFFFFF;
+}
+.kpis .kpi:nth-child(6n+5) {
+  background: var(--grad-indigo);
+  color: #FFFFFF;
+}
+.kpis .kpi:nth-child(6n+6) {
+  background: var(--grad-container);
+  color: #FFFFFF;
+}
+
+.kpis .kpi:nth-child(n) .muted,
+.kpis .kpi:nth-child(n) .delta {
+  color: rgba(255,255,255,0.8);
+}
+.kpis .kpi:nth-child(n) .delta.up { color: #A7F3D0; }
+.kpis .kpi:nth-child(n) .delta.down { color: #FECACA; }
+.kpis .kpi:nth-child(n) .delta.flat { color: rgba(255,255,255,0.65); }
+
+.kpi .muted.small {
+  font-size: 0.75rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.kpi-value {
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-family: 'Poppins', sans-serif;
+}
+
+.delta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.delta.up { color: var(--ok); }
+.delta.down { color: var(--danger); }
+.delta.flat { color: var(--ink-2); }
+
+.chart-card {
+  display: grid;
+  gap: 8px;
+  background: var(--container);
+  color: #FFFFFF;
+  border-radius: 24px;
+  padding: 14px 16px;
+  box-shadow:
+    0 6px 0 #1A1D3A,
+    0 16px 28px rgba(0,0,0,0.22),
+    inset 0 2px 0 rgba(255,255,255,0.1);
+}
+.chart-card h2 {
+  color: #fff;
+  font-size: 1rem;
+  margin: 0;
+}
+.chart-card .muted { color: rgba(255,255,255,0.85); font-size: 0.8rem; }
+
+#chart { overflow-x: auto; }
+#chart svg { display: block; max-width: 100%; max-height: 200px; }
+
+.legend {
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.7);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend i {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  border-radius: 3px;
+}
+.lg-cur { background: var(--accent-2); }
+.lg-prev {
+  background: none;
+  border-top: 2px dashed rgba(255,255,255,0.5);
+  height: 0 !important;
+  margin-left: 6px;
+}
+
+.dash-2 {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+}
+
+.dash-2 > .card,
+.dash-runs > .card {
+  padding: 14px 16px;
+  border-radius: 22px;
+  box-shadow: var(--shadow-clay-sm);
+}
+.dash-2 > .card h2,
+.dash-runs > .card h2 {
+  font-size: 1rem;
+}
+
+.rank { display: grid; gap: 4px; }
+
+.bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--purple-500), var(--cyan-400));
+}
+
+.recent {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  gap: 8px !important;
+  font-size: 0.9rem;
+}
+.recent:last-child { border-bottom: 0; }
+.recent .muted.small { font-size: 0.75rem; }
+
+/* Distribución personalizable */
+.dash-runs {
+  display: grid;
+  gap: 12px;
+}
+.donut-wrap {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.donut-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  flex: 1 1 160px;
+}
+.donut-legend li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.88rem;
+}
+.dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+/* Aviso stock bajo más compacto */
+.dash-runs .notice {
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  margin: 0;
+}
+
+/* Editores de personalización */
+.editor-section {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+.order-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.order-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-clay-sm);
+}
+.order-row .check { flex: 1 1 180px; }
+.order-label {
+  flex: 1 1 180px;
+  font-weight: 600;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+.order-btns { display: flex; gap: 6px; }
+
+/* Móvil: más columnas de KPI si cabe */
+@media (max-width: 520px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .kpi {
+    padding: 12px 12px;
+    border-radius: 18px;
+  }
+  .kpi-value { font-size: 1.25rem; }
+  .page-head.dash-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .page-head.dash-head .row {
+    justify-content: stretch;
+  }
+  .page-head.dash-head .seg {
+    flex: 1;
+  }
+  #chart svg { max-height: 160px; }
+}
+
+@media (min-width: 900px) {
+  .kpis {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+  .kpi-value { font-size: 1.55rem; }
+}

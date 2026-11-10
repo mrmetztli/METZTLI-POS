@@ -1,0 +1,147 @@
+/* ===== Estructura general: navegación + contenido — Claymorphism ===== */
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+
+#nav {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 24px 14px;
+  background: var(--surface);
+  border-right: none;
+  box-shadow:
+    8px 0 24px rgba(46, 50, 96, 0.08),
+    inset -1px 0 0 rgba(0, 0, 0, 0.03);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  z-index: 10;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px 22px;
+  font-weight: 800;
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 1.05rem;
+}
+
+.brand-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.brand-mark {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: var(--grad-purple);
+  color: #FFFFFF;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+  box-shadow: var(--shadow-accent), var(--clay-highlight);
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 18px;
+  color: var(--ink-2);
+  text-decoration: none;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+.nav-link svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.nav-link:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  color: var(--accent);
+  transform: translateX(3px);
+}
+
+.nav-link[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: var(--shadow-clay-sm);
+  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+#view {
+  min-width: 0;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 32px 36px;
+  outline: none;
+}
+
+.page-head {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+
+.section {
+  display: grid;
+  gap: 16px;
+}
+
+.section + .section {
+  margin-top: 20px;
+}
+
+.brand-logo {
+  flex: none;
+  height: 36px;
+  max-width: 130px;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+
+/* Navegación compacta en cuatro áreas principales */
+.nav-primary { display: flex; flex-direction: column; gap: 6px; }
+.nav-link.is-group-active { background: var(--accent-soft); color: var(--accent); }
+.nav-submenu {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0 8px 14px;
+  margin: 0 0 4px 12px;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.nav-sublink {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  color: var(--ink-2);
+  text-decoration: none;
+  font-size: .88rem;
+  font-weight: 600;
+}
+.nav-sublink svg { width: 17px; height: 17px; flex: none; }
+.nav-sublink[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }

@@ -1,0 +1,89 @@
+/* ===== Gastos — Claymorphism ===== */
+
+.neg { color: var(--danger); }
+
+.exp-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  text-align: left;
+}
+.exp-main > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cat-dot.sm {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  font-size: 1.15rem;
+  flex: none;
+  box-shadow: var(--shadow-clay-sm);
+}
+
+.exp-total { margin-bottom: 14px; }
+
+.modal.wide {
+  width: min(100%, 660px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+
+textarea.input {
+  min-height: 80px;
+  resize: vertical;
+  border-radius: var(--radius-sm);
+}
+
+/* Filtros desplegables (mismo patrón que Reportes) */
+.filters {
+  padding: 0;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.filters-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 20px;
+  min-height: 52px;
+  user-select: none;
+}
+.filters-summary::-webkit-details-marker { display: none; }
+.filters-summary::marker { content: ''; }
+.filters-summary-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 700;
+}
+.filters-chevron {
+  width: 10px;
+  height: 10px;
+  border-right: 2.5px solid var(--ink-2);
+  border-bottom: 2.5px solid var(--ink-2);
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+  flex: none;
+}
+.filters[open] .filters-chevron {
+  transform: rotate(225deg);
+  margin-top: 4px;
+}
+.filters-summary-hint {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  padding-right: 28px;
+}
+.filters-body {
+  padding: 4px 20px 18px;
+  border-top: 1px solid var(--line);
+}
