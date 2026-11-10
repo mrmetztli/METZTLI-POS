@@ -96,17 +96,17 @@ jobs:
           gradle = Path("android/app/build.gradle")
           source = gradle.read_text(encoding="utf-8")
 
-          match = re.search(r"(defaultConfig\\s*\\{)(.*?)(\\n\\s*\\})", source, re.S)
+          match = re.search(r"(defaultConfig\s*\{)(.*?)(\n\s*\})", source, re.S)
           if not match:
               raise SystemExit("No se encontró defaultConfig en android/app/build.gradle")
           body = match.group(2)
           for key, value in (("versionCode", str(version_code)), ("versionName", json.dumps(version_name))):
-              prop = re.compile(r"^\\s*" + key + r"\\s+.*$", re.M)
+              prop = re.compile(r"^\s*" + key + r"\s+.*$", re.M)
               line = f"        {key} {value}"
               if prop.search(body):
                   body = prop.sub(line, body)
               else:
-                  body += "\\n" + line
+                  body += "\n" + line
           source = source[:match.start(2)] + body + source[match.end(2):]
 
           signing = """
@@ -122,14 +122,14 @@ jobs:
           if "signingConfigs {" not in source:
               if "buildTypes {" not in source:
                   raise SystemExit("No se encontró buildTypes en android/app/build.gradle")
-              source = source.replace("buildTypes {", signing + "\\nbuildTypes {", 1)
+              source = source.replace("buildTypes {", signing + "\nbuildTypes {", 1)
 
-          release_match = re.search(r"(buildTypes\\s*\\{[\\s\\S]*?\\brelease\\s*\\{)", source)
+          release_match = re.search(r"(buildTypes\s*\{[\s\S]*?\brelease\s*\{)", source)
           if not release_match:
               raise SystemExit("No se encontró buildTypes.release en android/app/build.gradle")
           tail = source[release_match.end():]
-          if not re.search(r"signingConfig\\s+signingConfigs\\.release", tail):
-              source = source[:release_match.end()] + "\\n            signingConfig signingConfigs.release" + source[release_match.end():]
+          if not re.search(r"signingConfig\s+signingConfigs\.release", tail):
+              source = source[:release_match.end()] + "\n            signingConfig signingConfigs.release" + source[release_match.end():]
 
           gradle.write_text(source, encoding="utf-8")
           print(f"Configurado METZTLI Caja {version_name} (versionCode {version_code})")
