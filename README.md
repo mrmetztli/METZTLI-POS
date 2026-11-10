@@ -1,25 +1,7 @@
 # METZTLI · Caja
 
 Aplicación web de punto de venta (POS) offline-first: ventas, gastos, catálogo, reportes y configuración.
-
-## Despliegue automático con GitHub Actions
-
-Este repositorio incluye un workflow de **GitHub Actions** que publica automáticamente la app en **GitHub Pages** cada vez que haces push a `main` o `master`.
-
-### Cómo activarlo
-
-1. Sube este proyecto a un repositorio de GitHub.
-2. Ve a **Settings → Pages**.
-3. En **Source** elige **GitHub Actions**.
-4. Haz push a la rama `main` (o `master`) o ejecuta el workflow manualmente desde la pestaña **Actions**.
-
-La URL de la app será algo como:
-
-```
-https://TU-USUARIO.github.io/NOMBRE-DEL-REPO/
-```
-
-### Estructura
+Estructura
 
 ```
 .
