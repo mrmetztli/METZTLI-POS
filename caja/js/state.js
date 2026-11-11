@@ -70,12 +70,9 @@ export const DEFAULT_CONFIG = {
   units: ['pieza', 'kg', 'litro', 'servicio', 'hora'],
   // Orden y visibilidad de los módulos del menú. "icon" corresponde a components.js
   modules: [
-    { id: 'dashboard', label: 'Dashboard', icon: 'chart', enabled: true },
-    { id: 'sales', label: 'Nueva venta', icon: 'cart', enabled: true },
-    { id: 'clients', label: 'Clientes', icon: 'users', enabled: true },
-    { id: 'expenses', label: 'Gastos', icon: 'wallet', enabled: true },
-    { id: 'catalog', label: 'Catálogo', icon: 'tag', enabled: true },
-    { id: 'reports', label: 'Reportes', icon: 'list', enabled: true },
+    { id: 'dashboard', label: 'Inicio', icon: 'chart', enabled: true },
+    { id: 'sales', label: 'Ventas', icon: 'cart', enabled: true },
+    { id: 'reports', label: 'Reportes', icon: 'chart', enabled: true },
     { id: 'settings', label: 'Configuración', icon: 'gear', enabled: true }
   ]
 };
@@ -154,7 +151,7 @@ const notify = () => listeners.forEach((fn) => fn(config));
 export async function init() {
   const stored = await db.get('settings', 'config');
   config = mergeConfig(stored);
-  config.modules.find((m) => m.id === 'settings').enabled = true; // Configuración nunca se oculta
+  config.modules.forEach((m) => { m.enabled = true; }); // las 4 áreas principales siempre están visibles
   // Si una copia importada trae una moneda o zona horaria inválida, se vuelve al valor por defecto en vez de romper la app.
   try { new Intl.DateTimeFormat('es-MX', { timeZone: config.timezone }); } catch { config.timezone = DEFAULT_CONFIG.timezone; }
   try { new Intl.NumberFormat('es-MX', { style: 'currency', currency: config.currency }); } catch { config.currency = DEFAULT_CONFIG.currency; }
@@ -175,7 +172,7 @@ export function updateConfig(mutator) {
   const previous = config;
   const next = structuredClone(config);
   mutator(next);
-  next.modules.find((m) => m.id === 'settings').enabled = true;
+  next.modules.forEach((m) => { m.enabled = true; });
   config = next;
   applyTheme(next);
   notify();

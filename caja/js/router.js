@@ -1,4 +1,5 @@
-// router.js — navegación por "#/modulo". Carga cada módulo solo cuando se necesita.
+// router.js — navegación por "#/ruta". Cuatro áreas principales; cada una carga su módulo solo cuando se necesita.
+// Rutas: #/inicio · #/ventas · #/reportes · #/configuracion  (Catálogo, Gastos y Clientes viven dentro de Configuración).
 import { getConfig, subscribe } from './state.js';
 import { icon } from './components.js';
 import { escapeHtml } from './utilities.js';
@@ -7,60 +8,53 @@ import { escapeHtml } from './utilities.js';
 const LOADERS = {
   dashboard: () => import('./dashboard.js'),
   sales: () => import('./sales.js'),
-  clients: () => import('./clients.js'),
-  expenses: () => import('./expenses.js'),
-  catalog: () => import('./catalog.js'),
   reports: () => import('./reports.js'),
   settings: () => import('./settings.js')
+};
+
+const GROUPS = [
+  { id: 'inicio', label: 'Inicio', icon: 'chart', modules: ['dashboard'] },
+  { id: 'ventas', label: 'Ventas', icon: 'cart', modules: ['sales'] },
+  { id: 'reportes', label: 'Reportes', icon: 'chart', modules: ['reports'] },
+  { id: 'configuracion', label: 'Configuración', icon: 'gear', modules: ['settings'] }
+];
+
+// Rutas de versiones anteriores (marcadores guardados, enlaces viejos) → ruta nueva.
+const ALIASES = {
+  dashboard: 'inicio', sales: 'ventas', reports: 'reportes', settings: 'configuracion',
+  catalog: 'configuracion?s=catalog', expenses: 'configuracion?s=expenses', clients: 'configuracion?s=clients'
 };
 
 let current = null;
 let token = 0;
 
-const GROUPS = [
-  { id: 'inicio', label: 'Inicio', icon: 'chart', modules: ['dashboard'] },
-  { id: 'ventas', label: 'Ventas', icon: 'cart', modules: ['sales', 'clients'] },
-  { id: 'productos', label: 'Productos', icon: 'tag', modules: ['catalog'] },
-  { id: 'gestion', label: 'Gestión', icon: 'gear', modules: ['expenses', 'reports', 'settings'] }
-];
+const wantedRoute = () => location.hash.replace(/^#\/?/, '');
 
-const enabledModules = () => getConfig().modules.filter((m) => m.enabled && LOADERS[m.id]);
-
-function currentId() {
-  const wanted = location.hash.replace(/^#\/?/, '').split('?')[0];
-  const mods = enabledModules();
-  return (mods.find((m) => m.id === wanted) || mods[0])?.id;
-}
-
-function groupFor(moduleId, groups) {
-  return groups.find((g) => g.items.some((m) => m.id === moduleId)) || groups[0];
+function currentGroup() {
+  const id = wantedRoute().split('?')[0];
+  return GROUPS.find((g) => g.id === id) || GROUPS[0];
 }
 
 export function renderNav() {
-  const active = currentId();
+  const active = currentGroup();
   const name = getConfig().business.name || 'Mi negocio';
-  const enabled = enabledModules();
-  const groups = GROUPS.map((g) => ({ ...g, items: g.modules.map((id) => enabled.find((m) => m.id === id)).filter(Boolean) }))
-    .filter((g) => g.items.length);
-  const activeGroup = groupFor(active, groups);
-  const links = groups.map((g) => `
-    <a class="nav-link ${g.id === activeGroup?.id ? 'is-group-active' : ''}" href="#/${g.items[0].id}" ${g.id === activeGroup?.id ? 'aria-current="page"' : ''}>
+  const links = GROUPS.map((g) => `
+    <a class="nav-link ${g.id === active.id ? 'is-group-active' : ''}" href="#/${g.id}" ${g.id === active.id ? 'aria-current="page"' : ''}>
       ${icon(g.icon)}<span>${g.label}</span>
     </a>`).join('');
-  const sublinks = (activeGroup?.items || []).length > 1 ? `
-    <div class="nav-submenu" aria-label="Secciones de ${activeGroup.label}">
-      ${activeGroup.items.map((m) => `<a class="nav-sublink" href="#/${m.id}" ${m.id === active ? 'aria-current="page"' : ''}>${icon(m.icon)}<span>${escapeHtml(m.label)}</span></a>`).join('')}
-    </div>` : '';
   const logo = getConfig().business.logo;
   const mark = logo ? `<img class="brand-logo" src="${escapeHtml(logo)}" alt="">`
     : `<span class="brand-mark">${escapeHtml(name.trim().charAt(0).toUpperCase() || 'C')}</span>`;
   document.getElementById('nav').innerHTML = `
     <div class="brand">${mark}<span class="brand-name">${escapeHtml(name)}</span></div>
-    <div class="nav-primary">${links}</div>${sublinks}`;
+    <div class="nav-primary">${links}</div>`;
 }
 
 async function show() {
-  const id = currentId();
+  const route = wantedRoute();
+  const alias = ALIASES[route.split('?')[0]];
+  if (alias) { location.replace('#/' + alias); return; } // vuelve a llamar a show() por el cambio de hash
+  const group = currentGroup();
   const view = document.getElementById('view');
   const mine = ++token;
   renderNav();
@@ -68,7 +62,7 @@ async function show() {
   current = null;
   view.innerHTML = '';
   try {
-    const mod = await LOADERS[id]();
+    const mod = await LOADERS[group.modules[0]]();
     if (mine !== token) return; // el usuario ya navegó a otra sección
     current = mod;
     await mod.render(view);
@@ -82,6 +76,6 @@ async function show() {
 
 export function startRouter() {
   window.addEventListener('hashchange', show);
-  subscribe(renderNav); // el menú se actualiza si cambia el nombre o los módulos
+  subscribe(renderNav); // el menú se actualiza si cambia el nombre o el logotipo
   show();
 }

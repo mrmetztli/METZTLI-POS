@@ -7,13 +7,9 @@ import * as catalog from './catalog-store.js';
 import * as expenseStore from './expenses-store.js';
 import { computeDashboard, layoutRuns } from './dashboard-store.js';
 import { WIDGET_META, kindOf, PERIOD_NAMES, EXPENSE_WIDGETS } from './dashboard-widgets.js';
-import { renderDashboardEditor } from './dashboard-editor.js';
 import { getConfig, updateConfig } from './state.js';
 import { emptyState, toast, deltaHtml } from './components.js';
 import { escapeHtml, money, formatDateTime, formatDay } from './utilities.js';
-import { showHistoryNext } from './sales.js';
-import { showLowStockNext } from './catalog.js';
-import { openExpensesNext } from './expenses.js';
 import { barChartSvg, rankBarsHtml } from './charts.js';
 
 const LABELS = {
@@ -33,12 +29,11 @@ let onResize = null;
 export async function render(container) {
   root = container;
   const cfg = getConfig();
-  expensesOn = !!cfg.modules.find((m) => m.id === 'expenses')?.enabled; // con el módulo Gastos oculto, el dashboard no muestra gastos
+  expensesOn = true; // Gastos ya no es un módulo del menú: siempre se incluyen
   const [allSales, products, cats, expenses, expenseCats] = await Promise.all([
     sales.listSales(), catalog.listProducts(), catalog.listCategories(),
-    expensesOn ? expenseStore.listExpenses() : [], expensesOn ? expenseStore.listExpenseCategories() : []
+    expenseStore.listExpenses(), expenseStore.listExpenseCategories()
   ]);
-  lowStock = products.filter((p) => p.active && catalog.isLowStock(p)).length;
   categoryColors = new Map(cats.map((c) => [c.id, c.color]));
   expenseColors = new Map(expenseCats.map((c) => [c.id, c.color]));
   data = computeDashboard(allSales, { timeZone: cfg.timezone, period: cfg.dashboard.period, expenses });
@@ -53,8 +48,6 @@ export function destroy() {
   if (onResize) window.removeEventListener('resize', onResize);
   onResize = null;
 }
-
-const openEditor = () => renderDashboardEditor(root, { onBack: () => render(root) });
 
 /* ---------- Piezas ---------- */
 
@@ -80,6 +73,7 @@ function widgetHtml(id) {
       ? `<div class="notice warn">${lowStock} producto(s) con existencias bajas. <a class="btn btn-sm" href="#/catalog" data-lowstock>Verlos</a></div>` : '';
     case 'todaySales': return card('Ventas de hoy', money(data.today.total), `<span class="muted small">${data.today.count} operación(es)</span>${delta(data.today.total, data.today.prev.total, 'vs. ayer')}`);
     case 'monthSales': return card('Ventas del mes', money(data.month.total), `<span class="muted small">${data.month.count} operación(es)</span>${delta(data.month.total, data.month.prev.total, 'vs. mes anterior')}`);
+    case 'periodSales': return card(`Ventas ${L.now}`, money(p.total), `<span class="muted small">${p.count} operación(es)</span>${delta(p.total, p.prev.total, L.versus)}`);
     case 'periodOps': return card(`Operaciones ${L.now}`, String(p.count), delta(p.count, p.prev.count, L.versus));
     case 'periodAvg': return card(`Ticket promedio ${L.now}`, money(p.avg), delta(p.avg, p.prev.avg, L.versus));
     case 'periodDiscounts': return card(`Descuentos ${L.now}`, money(p.discount), delta(p.discount, p.prev.discount, L.versus));
@@ -114,28 +108,19 @@ function widgetHtml(id) {
   }
 }
 
+// Inicio muestra solo tres tarjetas del periodo elegido.
+const INICIO_CARDS = ['periodSales', 'periodExpenses', 'periodResult'];
 function layoutHtml() {
-  const runs = layoutRuns(getConfig().dashboard.widgets, kindOf);
-  const html = runs.map((run) => {
-    const parts = run.ids.map(widgetHtml).filter(Boolean);
-    if (!parts.length) return '';
-    if (run.type === 'kpis') return `<div class="kpis">${parts.join('')}</div>`;
-    if (run.type === 'half') return `<div class="dash-2">${parts.join('')}</div>`;
-    return parts.join('');
-  }).filter(Boolean);
-  return html.length
-    ? `<div class="dash-runs">${html.join('')}</div>`
-    : '<div class="card empty"><h2>No hay bloques visibles</h2><p>Usa “Personalizar” para elegir qué mostrar en tu dashboard.</p></div>';
+  return `<div class="kpis">${INICIO_CARDS.map(widgetHtml).filter(Boolean).join('')}</div>`;
 }
 
 function headerHtml(withPeriod) {
   const cfg = getConfig();
   return `<header class="page-head dash-head row between">
-    <div><h1>Dashboard</h1><p class="muted">${escapeHtml(cfg.business.name)}</p></div>
+    <div><h1>Inicio</h1><p class="muted">${escapeHtml(cfg.business.name)}</p></div>
     <div class="row">
       ${withPeriod ? `<div class="seg" role="group" aria-label="Periodo">${Object.entries(PERIOD_NAMES).map(([k, l]) =>
         `<button type="button" data-period="${k}" aria-pressed="${k === data.period.key}">${l}</button>`).join('')}</div>` : ''}
-      <button class="btn" id="dash-edit" type="button">Personalizar</button>
     </div></header>`;
 }
 
@@ -155,23 +140,16 @@ function drawScreen() {
         : 'Para empezar: 1) crea tus productos o servicios en el Catálogo, 2) registra tu primera venta. Los indicadores se calculan con tus ventas reales.',
       actionId: 'go-start', actionLabel: hasProducts ? 'Registrar primera venta' : 'Ir al Catálogo'
     });
-    root.querySelector('#go-start').addEventListener('click', () => { location.hash = hasProducts ? '#/sales' : '#/catalog'; });
-    root.querySelector('#dash-edit').addEventListener('click', openEditor);
+    root.querySelector('#go-start').addEventListener('click', () => { location.hash = hasProducts ? '#/ventas' : '#/configuracion?s=catalog'; });
     return;
   }
   root.innerHTML = headerHtml(true) + layoutHtml();
-  root.querySelector('#dash-edit').addEventListener('click', openEditor);
   root.querySelector('.seg').addEventListener('click', async (e) => {
     const k = e.target.closest('[data-period]')?.dataset.period;
     if (!k || k === data.period.key) return;
     try { await updateConfig((c) => { c.dashboard.period = k; }); } catch (err) { toast('No se pudo guardar el periodo', 'error'); }
     await render(root);
   });
-  root.querySelectorAll('[data-history]').forEach((a) => a.addEventListener('click', showHistoryNext));
-  root.querySelector('[data-newexpense]')?.addEventListener('click', () => openExpensesNext('new'));
-  root.querySelector('[data-expenses-summary]')?.addEventListener('click', () => openExpensesNext('summary'));
-  root.querySelector('[data-lowstock]')?.addEventListener('click', showLowStockNext);
-  drawChart();
 }
 
 function drawChart() {

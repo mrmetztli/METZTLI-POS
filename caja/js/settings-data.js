@@ -16,8 +16,9 @@ async function currentCounts() {
 
 const daysSince = (iso) => Math.floor((Date.now() - Date.parse(iso)) / 86400000);
 
-export function render(host) {
-  host.innerHTML = `
+// part: 'all' · 'backup' (estado, exportar, importar/restaurar) · 'app' (datos de prueba).
+export function render(host, { part = 'all' } = {}) {
+  const BACKUP_HTML = `
     <section class="section"><h2>Estado de los datos</h2>
       <div class="notice warn">Tus datos se guardan solo en este navegador y dispositivo. No existe respaldo automático ni en la nube:
         si borras los datos del navegador, se pierden. Exporta una copia con frecuencia.</div>
@@ -35,13 +36,16 @@ export function render(host) {
         <input id="d-file" type="file" accept=".json,application/json" aria-label="Elegir archivo de respaldo">
         <div id="d-import"></div>
         <div id="d-undo"></div>
-      </div></section>
+      </div></section>`;
+  const APP_HTML = `
     <section class="section"><h2>Datos de prueba</h2>
       <div class="card stack"><div id="d-demo"></div></div></section>`;
+  host.innerHTML = (part !== 'app' ? BACKUP_HTML : '') + (part !== 'backup' ? APP_HTML : '');
   const $ = (s) => host.querySelector(s);
 
   async function loadStatus() {
     const box = $('#d-status');
+    if (!box) return;
     try {
       const counts = await currentCounts();
       const rows = Object.entries(COUNT_LABELS).map(([k, l]) => [l, String(counts[k])]);
@@ -63,7 +67,7 @@ export function render(host) {
     }
   }
 
-  $('#d-export').addEventListener('click', async (e) => {
+  $('#d-export')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true; // evita doble clic
     try {
@@ -74,14 +78,14 @@ export function render(host) {
       loadStatus();
     } catch (err) { toast('No se pudo exportar: ' + err.message, 'error'); } finally { btn.disabled = false; }
   });
-  $('#d-persist').addEventListener('click', async () => {
+  $('#d-persist')?.addEventListener('click', async () => {
     const granted = await navigator.storage.persist();
     toast(granted ? 'Protección activada' : 'El navegador no la concedió', granted ? 'ok' : 'error');
     loadStatus();
   });
 
   /* ---- Importar y restaurar ---- */
-  $('#d-file').addEventListener('change', async (e) => {
+  $('#d-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     const box = $('#d-import');
     box.innerHTML = '';
@@ -122,6 +126,7 @@ export function render(host) {
   });
 
   async function loadUndo() {
+    if (!$('#d-undo')) return;
     const point = await hasRestorePoint();
     $('#d-undo').innerHTML = point
       ? `<div class="notice"><strong>Hay una copia automática del ${escapeHtml(formatDateTime(point.at))}</strong> (justo antes de la última restauración).
@@ -143,6 +148,7 @@ export function render(host) {
   /* ---- Datos de prueba ---- */
   async function loadDemoBox() {
     const box = $('#d-demo');
+    if (!box) return;
     const present = await hasDemo();
     box.innerHTML = `<p class="muted small">Sirven para ver cómo se ven el dashboard y los reportes. Están marcados como <strong>PRUEBA</strong>, no usan tus folios reales y se eliminan sin tocar tus datos.</p>
       ${present ? '<div class="notice warn">Hay datos de prueba cargados.</div>' : ''}

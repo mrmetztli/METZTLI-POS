@@ -12,6 +12,7 @@ import { getConfig, updateConfig } from './state.js';
 import { emptyState, toast, promptDialog } from './components.js';
 import { barChartSvg, rankBarsHtml, donutHtml } from './charts.js';
 import { escapeHtml, money, formatDateTime, download, uid } from './utilities.js';
+import { renderHistory } from './sales-history.js';
 
 const dmyKey = (k) => `${k.slice(8, 10)}/${k.slice(5, 7)}/${k.slice(0, 4)}`;
 
@@ -22,7 +23,10 @@ const MAX_ROWS = 200;
 const MAX_VIEWS = 20;
 
 // Los filtros se conservan mientras la app esté abierta; las vistas guardadas sí sobreviven al cerrar.
-const ui = { mode: 'report', view: 'summary', group: 'day', preset: 'month', from: '', to: '', productId: '', categoryId: '', expenseCategoryId: '', method: '', status: 'all' };
+// Pestañas de Reportes: cada una abre una vista que ya existía ('history' es la lista de ventas de sales-history.js).
+const TABS = [['history', 'Historial de ventas'], ['expenseDetail', 'Historial de gastos'], ['method', 'Por método de pago'],
+  ['category', 'Ventas por categoría'], ['expenseCategory', 'Gastos por categoría'], ['summary', 'Totales'], ['period', 'Totales por periodo']];
+const ui = { mode: 'report', view: 'history', group: 'day', preset: 'month', from: '', to: '', productId: '', categoryId: '', expenseCategoryId: '', method: '', status: 'all' };
 let started = false;
 let root = null;
 let allSales = [];
@@ -36,19 +40,17 @@ let onResize = null;
 export async function render(container) {
   root = container;
   ui.mode = 'report';
-  const expensesOn = !!getConfig().modules.find((m) => m.id === 'expenses')?.enabled;
   [allSales, products, cats, expenses, expenseCats] = await Promise.all([
     sales.listSales(), catalog.listProducts(), catalog.listCategories(),
-    expensesOn ? expenseStore.listExpenses() : [], expensesOn ? expenseStore.listExpenseCategories() : []
+    expenseStore.listExpenses(), expenseStore.listExpenseCategories()
   ]);
-  if (!expensesOn && isExpenseView(ui.view)) ui.view = 'summary'; // con el módulo Gastos oculto no se ofrecen sus reportes
   if (!allSales.length && !expenses.length) {
     root.innerHTML = `<header class="page-head"><h1>Reportes</h1><p class="muted">Ventas, productos y métodos de pago</p></header>` + emptyState({
       icon: 'list', title: 'Aún no hay datos para reportar',
       text: 'Cuando registres ventas podrás ver reportes por periodo, producto, categoría y método de pago, y exportarlos a CSV.',
-      actionId: 'go-sales', actionLabel: 'Ir a Nueva venta'
+      actionId: 'go-sales', actionLabel: 'Ir a Ventas'
     });
-    root.querySelector('#go-sales').addEventListener('click', () => { location.hash = '#/sales'; });
+    root.querySelector('#go-sales').addEventListener('click', () => { location.hash = '#/ventas'; });
     return;
   }
   if (!started) { started = true; ui.preset = getConfig().reports.defaultPreset; } // el periodo predeterminado aplica al abrir
@@ -70,7 +72,7 @@ function applyPreset(preset, tz) {
 }
 
 const filters = () => ({ from: ui.from, to: ui.to, productId: ui.productId, categoryId: ui.categoryId, expenseCategoryId: ui.expenseCategoryId, method: ui.method, status: ui.status });
-const viewNames = () => Object.fromEntries(Object.entries(REPORT_VIEWS).filter(([k]) => !isExpenseView(k) || expenses.length || getConfig().modules.find((m) => m.id === 'expenses')?.enabled));
+const viewNames = () => Object.fromEntries(TABS);
 const columnIds = (view) => (view === 'summary' ? getConfig().reports.summaryCards : getConfig().reports.columns[view]);
 
 /* ---------- Vistas guardadas ---------- */
@@ -207,6 +209,7 @@ function drawScreen() {
     root.querySelectorAll('#r-views .chip').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
     $('#r-groups').hidden = v !== 'period';
     syncFilters();
+    syncHistory();
     refresh();
   });
   $('#r-groups').addEventListener('click', (e) => {
@@ -217,6 +220,12 @@ function drawScreen() {
     refresh();
   });
   // Los reportes de gastos usan otros filtros (categoría de gasto) y otros nombres de estado.
+  // La lista de ventas tiene su propio buscador y estado: sin filtros ni botones de reporte.
+  function syncHistory() {
+    const h = ui.view === 'history';
+    $('#r-filters').hidden = h;
+    ['#r-saved', '#r-save', '#r-custom', '#r-csv', '#r-print'].forEach((id) => { $(id).hidden = h; });
+  }
   function syncFilters() {
     const exp = isExpenseView(ui.view);
     root.querySelectorAll('[data-sales-only]').forEach((el) => { el.hidden = exp; });
@@ -229,6 +238,7 @@ function drawScreen() {
   $('#r-custom').addEventListener('click', () => { ui.mode = 'editor'; draw(); window.scrollTo(0, 0); });
   $('#r-csv').addEventListener('click', exportCsv);
   $('#r-print').addEventListener('click', () => window.print());
+  syncHistory();
   refresh();
 }
 
@@ -258,6 +268,13 @@ function refresh() {
     <p><strong>Reporte: ${REPORT_VIEWS[ui.view]}${ui.view === 'period' ? ' · por ' + GROUPS[ui.group].toLowerCase() : ''}</strong></p>
     <p>${escapeHtml(describeFilters())}</p><p>Generado: ${escapeHtml(formatDateTime(new Date().toISOString()))}</p>`;
 
+  if (ui.view === 'history') { // lista de ventas con búsqueda, reimpresión y cancelación (sales-history.js)
+    current = null;
+    hint.textContent = '';
+    root.querySelector('#r-printhead').innerHTML = '';
+    renderHistory(rep);
+    return;
+  }
   if (ui.from && ui.to && ui.from > ui.to) {
     current = null;
     rep.innerHTML = `<div class="notice warn" style="margin-top:16px" role="alert">La fecha inicial es posterior a la final. Corrige el rango para ver resultados.</div>`;

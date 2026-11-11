@@ -8,7 +8,6 @@ import { toast, openModal, promptDialog, confirmDialog, productThumb, askNumpad 
 import { escapeHtml, money, uid } from './utilities.js';
 import { askPayment } from './checkout.js';
 import { printTicket } from './tickets.js';
-import { renderHistory } from './sales-history.js';
 import { openBarcodeScanner } from './barcode-scan.js';
 
 const round3 = (n) => Math.round(n * 1000) / 1000;
@@ -27,9 +26,6 @@ async function load() {
   products = products.filter((p) => p.active);
 }
 
-// Lo usa el Dashboard para abrir la app directamente en la pestaña Historial.
-export function showHistoryNext() { ui.tab = 'history'; }
-
 export async function render(container) {
   root = container;
   await load();
@@ -47,11 +43,10 @@ function draw() {
 function drawScreen() {
   root.innerHTML = `
     <header class="page-head row between">
-      <div><h1>Nueva venta</h1><p class="muted">Registra una operación o consulta el historial</p></div>
+      <div><h1>Ventas</h1><p class="muted">Registra una operación</p></div>
       <div class="seg" role="group" aria-label="Sección">
-        <button type="button" data-tab="sell" aria-pressed="${ui.tab === 'sell'}">Vender</button>
-        <button type="button" data-tab="free" aria-pressed="${ui.tab === 'free'}">Libre</button>
-        <button type="button" data-tab="history" aria-pressed="${ui.tab === 'history'}">Historial</button>
+        <button type="button" data-tab="sell" aria-pressed="${ui.tab === 'sell'}">Nueva venta</button>
+        <button type="button" data-tab="free" aria-pressed="${ui.tab === 'free'}">Venta libre</button>
       </div>
     </header><div id="tab"></div>`;
   root.querySelector('.seg').addEventListener('click', async (e) => {
@@ -62,8 +57,7 @@ function drawScreen() {
     draw();
   });
   const host = root.querySelector('#tab');
-  if (ui.tab === 'history') renderHistory(host);
-  else if (ui.tab === 'free') drawFree(host);
+  if (ui.tab === 'free') drawFree(host);
   else drawSell(host);
 }
 
@@ -72,10 +66,10 @@ function drawScreen() {
 function drawSell(host) {
   if (!products.length) {
     host.innerHTML = `<div class="card empty"><h2>Aún no tienes productos para vender</h2>
-      <p>Crea productos en el Catálogo, o usa la pestaña <strong>Libre</strong> para cobrar un monto sin catálogo.</p>
+      <p>Crea productos en el Catálogo, o usa la pestaña <strong>Venta libre</strong> para cobrar un monto sin catálogo.</p>
       <div class="row" style="justify-content:center;gap:12px;margin-top:8px">
-        <a class="btn btn-primary" href="#/catalog">Ir al Catálogo</a>
-        <button type="button" class="btn" id="go-free-tab">Ir a Libre</button>
+        <a class="btn btn-primary" href="#/configuracion?s=catalog">Ir al Catálogo</a>
+        <button type="button" class="btn" id="go-free-tab">Ir a Venta libre</button>
       </div></div>`;
     host.querySelector('#go-free-tab')?.addEventListener('click', () => {
       ui.tab = 'free';

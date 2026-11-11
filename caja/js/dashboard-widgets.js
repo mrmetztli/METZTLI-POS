@@ -23,4 +23,4 @@ export const WIDGET_META = {
   recentExpenses: { label: 'Últimos gastos', kind: 'block' }
 };
 export const kindOf = (id) => WIDGET_META[id]?.kind;
-export const PERIOD_NAMES = { day: 'Hoy', week: 'Semana', month: 'Mes' };
+export const PERIOD_NAMES = { day: 'Día', week: 'Semana', month: 'Mes' };
