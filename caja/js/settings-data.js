@@ -5,6 +5,7 @@ import { parseBackup, restoreBackup, undoRestore, hasRestorePoint } from './back
 import { hasDemo, loadDemo, removeDemo } from './demo-data.js';
 import { toast, confirmDialog, promptDialog, openModal } from './components.js';
 import { escapeHtml, formatDateTime, download } from './utilities.js';
+import { checkForUpdate, downloadUpdate, getInstalledVersion } from './updates.js';
 
 const COUNT_LABELS = { products: 'Productos y servicios', categories: 'Categorías', sales: 'Ventas', expenses: 'Gastos' };
 
@@ -38,6 +39,16 @@ export function render(host, { part = 'all' } = {}) {
         <div id="d-undo"></div>
       </div></section>`;
   const APP_HTML = `
+    <section class="section"><h2>Actualizaciones</h2>
+      <div class="card stack">
+        <p class="muted small">Versión instalada: <strong id="d-app-version">Consultando…</strong></p>
+        <p id="d-update-status" class="muted" role="status">Puedes buscar una versión nueva cuando quieras.</p>
+        <div class="row">
+          <button class="btn btn-primary" id="d-check-update" type="button">Buscar actualizaciones</button>
+          <button class="btn" id="d-install-update" type="button" hidden>Descargar e instalar</button>
+        </div>
+        <p class="muted small">Las actualizaciones se descargan desde GitHub. Android solicitará confirmar la instalación.</p>
+      </div></section>
     <section class="section"><h2>Datos de prueba</h2>
       <div class="card stack"><div id="d-demo"></div></div></section>`;
   host.innerHTML = (part !== 'app' ? BACKUP_HTML : '') + (part !== 'backup' ? APP_HTML : '');
@@ -145,6 +156,42 @@ export function render(host, { part = 'all' } = {}) {
     });
   }
 
+  /* ---- Actualizaciones de la aplicación ---- */
+  async function loadUpdateBox() {
+    const status = $('#d-update-status');
+    const checkButton = $('#d-check-update');
+    const installButton = $('#d-install-update');
+    if (!status || !checkButton || !installButton) return;
+
+    let pendingRelease = null;
+    $('#d-app-version').textContent = 'v' + await getInstalledVersion();
+
+    checkButton.addEventListener('click', async () => {
+      checkButton.disabled = true;
+      installButton.hidden = true;
+      pendingRelease = null;
+      status.textContent = 'Buscando actualizaciones…';
+      try {
+        const result = await checkForUpdate({ force: true });
+        status.textContent = result.available
+          ? 'Nueva versión v' + result.version + ' disponible. ' + result.notes
+          : result.message;
+        if (result.available) {
+          pendingRelease = result;
+          installButton.hidden = false;
+        }
+      } catch (err) {
+        status.textContent = 'No se pudo comprobar la actualización: ' + err.message;
+      } finally {
+        checkButton.disabled = false;
+      }
+    });
+
+    installButton.addEventListener('click', () => {
+      if (pendingRelease) downloadUpdate(pendingRelease);
+    });
+  }
+
   /* ---- Datos de prueba ---- */
   async function loadDemoBox() {
     const box = $('#d-demo');
@@ -173,5 +220,5 @@ export function render(host, { part = 'all' } = {}) {
     });
   }
 
-  loadStatus(); loadUndo(); loadDemoBox();
+  loadStatus(); loadUndo(); loadDemoBox(); loadUpdateBox();
 }
