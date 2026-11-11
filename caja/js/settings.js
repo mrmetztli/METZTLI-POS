@@ -59,7 +59,7 @@ const BUILDERS = {
   clients: async (host) => { mounted = await mountModule('./clients.js', host); },
   about: async (host) => {
     host.innerHTML = `<section class="section"><h2>Sobre nosotros</h2>
-      <div class="card stack"><p>mrmetztli@gmail.com</p><p>7771913398</p></div></section>`;
+      <div class="card stack"><p>mrmetztli@gmail.com</p></div></section>`;
   }
 };
 
