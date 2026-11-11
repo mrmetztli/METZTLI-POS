@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: metztli-caja-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Compilar APK de publicación
