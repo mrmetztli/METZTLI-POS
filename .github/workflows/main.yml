@@ -64,6 +64,20 @@ jobs:
       - name: Instalar dependencias
         run: npm install
 
+      - name: Generar metadatos de versión
+        run: |
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+          package = json.loads(Path("package.json").read_text(encoding="utf-8"))
+          code = int(Path("android-version-code.txt").read_text(encoding="utf-8").strip())
+          Path("caja/version.json").write_text(
+              json.dumps({"version": package["version"], "versionCode": code}, indent=2) + "\n",
+              encoding="utf-8"
+          )
+          print(f"Metadatos preparados para METZTLI Caja {package['version']} (código {code})")
+          PY
+
       - name: Crear proyecto Android si no existe
         run: |
           if [ ! -d android ]; then
@@ -72,6 +86,22 @@ jobs:
 
       - name: Sincronizar METZTLI Caja
         run: npx cap sync android
+
+      - name: Integrar instalador de APK en Android
+        shell: bash
+        run: |
+          mkdir -p android/app/src/main/java/mx/metztli/caja
+          cp android-custom/MainActivity.java android/app/src/main/java/mx/metztli/caja/MainActivity.java
+          python3 <<'PY'
+          from pathlib import Path
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          source = manifest.read_text(encoding="utf-8")
+          permission = '    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\\n'
+          if "android.permission.REQUEST_INSTALL_PACKAGES" not in source:
+              source = source.replace("<application", permission + "    <application", 1)
+          manifest.write_text(source, encoding="utf-8")
+          print("Permiso de instalación y puente nativo configurados")
+          PY
 
       - name: Configurar versión y firma de publicación
         shell: bash
