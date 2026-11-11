@@ -2,6 +2,7 @@
 import * as state from './state.js';
 import { startRouter } from './router.js';
 import { escapeHtml } from './utilities.js';
+import { startAutomaticUpdateCheck } from './updates.js';
 
 async function main() {
   try {
@@ -18,6 +19,7 @@ async function main() {
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker no registrado:', e));
   }
+  startAutomaticUpdateCheck();
 }
 
 main();
