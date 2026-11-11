@@ -52,3 +52,14 @@ Desinstalar la aplicación, borrar sus datos o cambiar el identificador puede el
 Después de configurar los cuatro secretos, entra en **Actions** → **Generar APK firmado - METZTLI Caja** → **Run workflow**. Si falla, abre el trabajo y revisa el primer paso marcado en rojo.
 
 La clave se crea y resguarda en tu PC; el workflow solo la usa temporalmente durante la compilación y no la publica como artefacto.
+
+## 6. Actualizaciones integradas en la aplicación
+
+- La app consulta automáticamente GitHub Releases al abrirse, con un intervalo mínimo de 6 horas entre comprobaciones automáticas.
+- También permite buscar manualmente desde **Configuración → App → Actualizaciones**.
+- Para publicar una versión, actualiza `package.json` y aumenta `android-version-code.txt`; conserva siempre el mismo identificador y el mismo JKS.
+- Sube los cambios a `main` y espera a que el APK Release compile correctamente.
+- Después crea una etiqueta que coincida con la versión, por ejemplo `v1.2.3`. El workflow genera el GitHub Release y adjunta el APK.
+- El actualizador solo acepta APK descargados desde la ruta de Releases del repositorio oficial y verifica SHA-256 cuando GitHub publica ese dato.
+- Cada usuario debe autorizar a METZTLI Caja para instalar aplicaciones desconocidas (una vez por dispositivo) y confirmar cada actualización en el instalador de Android.
+- Si no hay conexión, la comprobación no se realiza; las funciones locales siguen disponibles.
