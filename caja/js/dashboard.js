@@ -162,7 +162,6 @@ function drawScreen() {
       actionId: 'go-start', actionLabel: hasProducts ? 'Registrar primera venta' : 'Ir al Catálogo'
     });
     root.querySelector('#dash-update-download')?.addEventListener('click', () => downloadUpdate(pendingUpdate));
-    root.querySelector('#dash-update-download')?.addEventListener('click', () => downloadUpdate(pendingUpdate));
     root.querySelector('#go-start').addEventListener('click', () => { location.hash = hasProducts ? '#/ventas' : '#/configuracion?s=catalog'; });
     return;
   }
