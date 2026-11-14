@@ -40,12 +40,12 @@ export async function render(container) {
   categoryColors = new Map(cats.map((c) => [c.id, c.color]));
   expenseColors = new Map(expenseCats.map((c) => [c.id, c.color]));
   data = computeDashboard(allSales, { timeZone: cfg.timezone, period: cfg.dashboard.period, expenses });
+  destroy(); // limpia escuchadores anteriores antes de montar esta vista
   pendingUpdate = getPendingUpdate();
   onUpdateAvailable = (event) => { pendingUpdate = event.detail; drawScreen(); };
   window.addEventListener('metztli:update-available', onUpdateAvailable);
   data.productCount = products.length;
   draw();
-  destroy(); // evita acumular escuchadores si se vuelve a dibujar (cambio de periodo, editor)
   onResize = (() => { let t; return () => { clearTimeout(t); t = setTimeout(drawChart, 200); }; })();
   window.addEventListener('resize', onResize);
 }
@@ -161,6 +161,7 @@ function drawScreen() {
         : 'Para empezar: 1) crea tus productos o servicios en el Catálogo, 2) registra tu primera venta. Los indicadores se calculan con tus ventas reales.',
       actionId: 'go-start', actionLabel: hasProducts ? 'Registrar primera venta' : 'Ir al Catálogo'
     });
+    root.querySelector('#dash-update-download')?.addEventListener('click', () => downloadUpdate(pendingUpdate));
     root.querySelector('#go-start').addEventListener('click', () => { location.hash = hasProducts ? '#/ventas' : '#/configuracion?s=catalog'; });
     return;
   }
