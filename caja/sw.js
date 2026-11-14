@@ -1,7 +1,7 @@
 // Service worker: guarda la app para que abra sin internet.
 // Estrategia: red primero, caché como respaldo (así ves tus cambios al editar código).
 // Si agregas archivos nuevos al proyecto, súmalos a SHELL y sube el número de CACHE.
-const CACHE = 'caja-v13';
+const CACHE = 'caja-v14';
 const SHELL = [
   './', 'index.html', 'manifest.json',
   'css/styles.css', 'css/layout.css', 'css/catalog.css', 'css/sales.css', 'css/dashboard.css', 'css/reports.css', 'css/expenses.css', 'css/clients.css', 'css/responsive.css',
