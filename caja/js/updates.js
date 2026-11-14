@@ -1,9 +1,16 @@
 // Actualizaciones de METZTLI Caja: consulta GitHub Releases y solicita la instalación nativa.
-import { openModal, toast } from './components.js';
+import { toast } from './components.js';
 
 const RELEASE_API = 'https://api.github.com/repos/mrmetztli/METZTLI-POS/releases/latest';
 const LAST_CHECK_KEY = 'metztli.update.lastCheck';
 const CHECK_INTERVAL = 6 * 60 * 60 * 1000;
+
+// La versión pendiente se comparte con la pantalla Inicio durante esta sesión.
+let pendingUpdate = null;
+
+export function getPendingUpdate() {
+  return pendingUpdate;
+}
 
 export async function getInstalledVersion() {
   try {
@@ -59,7 +66,7 @@ export async function checkForUpdate({ force = false } = {}) {
     throw new Error('La publicación ' + release.tag_name + ' no contiene el APK esperado (' + assetName + ').');
   }
 
-  return {
+  pendingUpdate = {
     available: true,
     version,
     currentVersion,
@@ -68,6 +75,8 @@ export async function checkForUpdate({ force = false } = {}) {
     digest: asset.digest || '',
     notes: String(release.body || 'Mejoras y correcciones generales.').slice(0, 1200)
   };
+  window.dispatchEvent(new CustomEvent('metztli:update-available', { detail: pendingUpdate }));
+  return pendingUpdate;
 }
 
 export function downloadUpdate(release) {
@@ -106,19 +115,10 @@ export function downloadUpdate(release) {
 }
 
 export function startAutomaticUpdateCheck() {
+  // La pantalla Inicio escucha el evento y muestra un aviso persistente dentro de la app.
   window.setTimeout(async () => {
     try {
-      const result = await checkForUpdate();
-      if (!result.available) return;
-      const choice = await openModal({
-        title: 'Nueva versión disponible: v' + result.version,
-        message: 'Tienes instalada la versión v' + result.currentVersion + '. ' + result.notes,
-        actions: [
-          { label: 'Más tarde', value: 'later' },
-          { label: 'Actualizar ahora', value: 'update', kind: 'primary' }
-        ]
-      });
-      if (choice === 'update') downloadUpdate(result);
+      await checkForUpdate();
     } catch (error) {
       console.info('No se pudo comprobar si hay actualizaciones:', error);
     }
