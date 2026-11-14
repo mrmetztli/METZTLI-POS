@@ -11,6 +11,7 @@ import { getConfig, updateConfig } from './state.js';
 import { emptyState, toast, deltaHtml } from './components.js';
 import { escapeHtml, money, formatDateTime, formatDay } from './utilities.js';
 import { barChartSvg, rankBarsHtml } from './charts.js';
+import { getPendingUpdate, downloadUpdate } from './updates.js';
 
 const LABELS = {
   day: { now: 'hoy', versus: 'vs. ayer', chart: 'Ventas por hora' },
@@ -25,6 +26,8 @@ let categoryColors = new Map();
 let expenseColors = new Map();
 let expensesOn = false;
 let onResize = null;
+let pendingUpdate = null;
+let onUpdateAvailable = null;
 
 export async function render(container) {
   root = container;
@@ -37,6 +40,9 @@ export async function render(container) {
   categoryColors = new Map(cats.map((c) => [c.id, c.color]));
   expenseColors = new Map(expenseCats.map((c) => [c.id, c.color]));
   data = computeDashboard(allSales, { timeZone: cfg.timezone, period: cfg.dashboard.period, expenses });
+  pendingUpdate = getPendingUpdate();
+  onUpdateAvailable = (event) => { pendingUpdate = event.detail; drawScreen(); };
+  window.addEventListener('metztli:update-available', onUpdateAvailable);
   data.productCount = products.length;
   draw();
   destroy(); // evita acumular escuchadores si se vuelve a dibujar (cambio de periodo, editor)
@@ -46,7 +52,9 @@ export async function render(container) {
 
 export function destroy() {
   if (onResize) window.removeEventListener('resize', onResize);
+  if (onUpdateAvailable) window.removeEventListener('metztli:update-available', onUpdateAvailable);
   onResize = null;
+  onUpdateAvailable = null;
 }
 
 /* ---------- Piezas ---------- */
@@ -130,10 +138,23 @@ function draw() {
   if (true) mountDemoBanner(root, () => render(root));
 }
 
+function updateNoticeHtml() {
+  if (!pendingUpdate?.available) return '';
+  return '<section class="update-notice" role="status" aria-live="polite">' +
+    '<div class="update-notice-icon" aria-hidden="true">↑</div>' +
+    '<div class="update-notice-copy">' +
+      '<strong>¡Actualización disponible!</strong>' +
+      '<span>METZTLI Caja v' + escapeHtml(pendingUpdate.version) + ' está lista para descargar.</span>' +
+      '<small>Puedes seguir trabajando; este aviso permanecerá aquí hasta que actualices.</small>' +
+    '</div>' +
+    '<button class="btn btn-primary" type="button" id="dash-update-download">Descargar actualización</button>' +
+  '</section>';
+}
+
 function drawScreen() {
   if (!data.hasSales && !(expensesOn && data.expenses.hasAny)) {
     const hasProducts = data.productCount > 0;
-    root.innerHTML = headerHtml(false) + emptyState({
+    root.innerHTML = updateNoticeHtml() + headerHtml(false) + emptyState({
       icon: 'chart', title: 'Aún no hay ventas',
       text: hasProducts
         ? 'Registra tu primera venta y aquí verás tus ventas del día y del mes, el ticket promedio, los productos más vendidos y más.'
@@ -143,7 +164,8 @@ function drawScreen() {
     root.querySelector('#go-start').addEventListener('click', () => { location.hash = hasProducts ? '#/ventas' : '#/configuracion?s=catalog'; });
     return;
   }
-  root.innerHTML = headerHtml(true) + layoutHtml();
+  root.innerHTML = updateNoticeHtml() + headerHtml(true) + layoutHtml();
+  root.querySelector('#dash-update-download')?.addEventListener('click', () => downloadUpdate(pendingUpdate));
   root.querySelector('.seg').addEventListener('click', async (e) => {
     const k = e.target.closest('[data-period]')?.dataset.period;
     if (!k || k === data.period.key) return;
