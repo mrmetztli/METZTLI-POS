@@ -2,80 +2,83 @@
 
 ## Objetivo
 
-Compartir una sola operación de negocio entre varios Android y varias PC Windows, desde redes diferentes. El sistema conserva IndexedDB como almacenamiento local y usa Supabase (PostgreSQL + Auth + Realtime) como servidor compartido.
+Compartir una sola operación de negocio entre varios Android y varias PC Windows, desde redes diferentes. IndexedDB seguirá siendo el almacenamiento local y Supabase (PostgreSQL + Auth + Realtime) será el servidor compartido.
 
 ## Estado de esta entrega
 
-Esta rama prepara la base SQL y el procedimiento de migración. **Todavía no activa la sincronización dentro de la aplicación**: falta crear el proyecto Supabase, establecer la cuenta propietaria, definir la primera importación y después conectar el motor cliente. No publicar una APK/EXE con credenciales de ejemplo.
+Esta fase prepara el esquema remoto y el alta segura del negocio/propietario. **Todavía no activa la sincronización dentro de la aplicación**: faltan aplicar y verificar el SQL, crear el usuario propietario, conectar Auth y desarrollar el motor cliente. No publicar una APK/EXE con credenciales de ejemplo.
 
 ## Arquitectura prevista
 
 - Android: APK actual, IndexedDB local y cola de cambios pendientes.
-- Windows: instalador EXE con la misma aplicación web y almacenamiento local.
+- Windows: futura aplicación instalable con la misma aplicación web y almacenamiento local.
 - Supabase Auth: cada empleado inicia sesión con su propia cuenta.
-- PostgreSQL: registros compartidos por negocio, con Row Level Security (RLS).
-- Realtime: avisos de cambios; el cliente siempre confirma y descarga cambios desde PostgreSQL.
-- Offline: ventas y consultas siguen disponibles localmente. La cola se reintenta al recuperar internet.
+- PostgreSQL: registros compartidos por negocio, protegidos con Row Level Security (RLS) y privilegios SQL explícitos.
+- Realtime: avisos de cambios; el cliente confirma y descarga cambios desde PostgreSQL bajo RLS.
+- Offline: las operaciones locales permanecen en el dispositivo y se reintentan al recuperar internet.
 
-## Datos que se sincronizan
+## Datos previstos
 
-Los almacenes actuales de `caja-db` versión 3: products, categories, sales, clients, expenses, expenseCategories, settings, audit y meta.
+Los almacenes actuales de `caja-db` versión 3: products, categories, sales, clients, expenses, expenseCategories, settings, audit y meta. La tabla remota `sync_records` conserva cada registro como JSONB junto con negocio, almacén, ID, revisión, fecha y marca de eliminación. La compatibilidad real de cada registro se validará al implementar el adaptador; no se debe importar hasta entonces.
 
-La tabla remota `sync_records` conserva cada registro como JSONB junto con negocio, almacén, ID, revisión, fecha y marca de eliminación. Esto evita cambiar el formato de los registros actuales durante la primera fase.
+## Roles
 
-## Reglas críticas de consistencia
+- `owner`: propietario; administra el negocio y todos los datos.
+- `admin`: administra la operación y puede agregar cajeros/lectores.
+- `cashier`: opera registros, pero no puede modificar la configuración compartida.
+- `viewer`: solo lectura.
 
-1. Ventas y gastos son registros identificados por UUID y se envían de forma idempotente.
-2. Los folios no pueden depender de contadores locales independientes. La asignación definitiva debe ocurrir en una operación remota atómica.
-3. El inventario no se sincroniza copiando el campo stock con "última escritura gana". Se implementará un libro de movimientos de inventario y una operación remota atómica para evitar que ventas simultáneas pierdan existencias.
-4. Ediciones simultáneas de configuración/productos se detectan por revisión; los conflictos se presentan para resolución, no se descartan silenciosamente.
-5. Las eliminaciones se propagan mediante tombstones.
-6. Cada negocio queda aislado por RLS. La clave service_role jamás se incluye en el APK ni en el EXE.
+La base SQL revoca privilegios de cliente por defecto y concede únicamente lectura o escritura necesaria. Las funciones privilegiadas fijan `search_path`, verifican al usuario autenticado y limitan quién puede ejecutarlas. La tabla no concede borrado directo; las bajas se representan con `deleted=true`.
 
 ## Preparación de Supabase
 
-1. Crear un proyecto Supabase y conservar URL y anon/publishable key.
-2. Abrir SQL Editor y ejecutar `supabase/schema.sql`.
-3. Crear el usuario propietario en Authentication.
-4. Crear el negocio e insertar su membresía owner desde SQL Editor, sustituyendo los valores:
+1. Crear el proyecto Supabase y conservar Project URL y Publishable key.
+2. Crear la cuenta propietaria en **Authentication → Users** (o habilitar el método de registro que se vaya a utilizar).
+3. Abrir **SQL Editor → New query**, pegar el contenido completo de `supabase/schema.sql` de esta rama y ejecutar una sola vez.
+4. Iniciar sesión en la aplicación futura con la cuenta propietaria y llamar a la función `create_business` con el nombre del negocio. La función crea el negocio y su membresía `owner` en una sola transacción.
+5. Para dar acceso a otro usuario, crear primero su cuenta en Auth y después llamar a `add_business_member` con el UUID de Auth y el rol permitido. Solo el propietario puede asignar `admin`; owner/admin pueden asignar cashier o viewer.
+6. Configurar Project URL y Publishable key en el proceso de compilación. Nunca colocar la contraseña de la base de datos ni una clave `service_role`/secret en el APK o EXE.
 
-```sql
-insert into public.businesses (name)
-values ('Mi negocio')
-returning id;
+**No insertar manualmente miembros ni ejecutar importaciones de IndexedDB.** El procedimiento de alta inicial desde la app se conectará en una fase posterior; por ahora, el SQL puede prepararse, pero no se considera validado hasta pasar las pruebas descritas abajo.
 
--- Con el UUID devuelto y el UUID del usuario Auth:
-insert into public.business_members (business_id, user_id, role)
-values ('UUID_DEL_NEGOCIO', 'UUID_DEL_USUARIO', 'owner');
-```
+## Reglas críticas de consistencia
 
-5. Invitar/crear las cuentas de los demás usuarios y añadir una fila en business_members para cada uno, con el rol adecuado.
-6. Configurar la URL y la anon/publishable key en el proceso de compilación. Nunca colocar la service_role key en el cliente.
+1. Ventas y gastos deben usar IDs estables e idempotentes.
+2. Los folios definitivos deben asignarse mediante una operación remota atómica.
+3. El inventario no se sincroniza copiando `stock` con "última escritura gana". Se implementará un libro de movimientos y una operación remota atómica para evitar pérdidas de existencias por ventas simultáneas.
+4. Ediciones simultáneas se detectan por revisión; los conflictos se presentan para resolución.
+5. Las eliminaciones se propagan mediante tombstones.
+6. Cada negocio queda aislado por RLS. Un usuario de otro negocio no debe poder leer ni modificar datos.
 
 ## Migración segura de los datos actuales
 
-No se debe importar automáticamente desde cada dispositivo al iniciar sesión. Si varios dispositivos contienen datos distintos, una importación indiscriminada puede duplicar ventas o sobrescribir productos.
+No se debe importar automáticamente desde cada dispositivo al iniciar sesión.
 
 1. Exportar un respaldo JSON desde cada instalación actual.
 2. Identificar cuál respaldo es el principal y revisar los demás.
-3. Unir catálogos/clientes por ID y revisar colisiones; las ventas/gastos se conservan por ID.
-4. Importar una sola vez con una vista previa de conteos y conflictos.
+3. Unir catálogos/clientes por ID y revisar colisiones; conservar ventas/gastos por ID.
+4. Preparar una importación única con vista previa de conteos y conflictos.
 5. Verificar totales, folios, existencias, clientes y gastos antes de activar sincronización bidireccional.
-6. Mantener intactos los respaldos originales hasta completar pruebas.
+6. Mantener intactos los respaldos originales hasta completar las pruebas.
 
 ## Fases de desarrollo
 
-- Fase 1 (esta rama): esquema remoto, aislamiento por negocio y guía de migración.
-- Fase 2: autenticación, selector/registro de dispositivo, estado de conexión y sincronización incremental.
+- Fase 1: esquema remoto, roles, aislamiento por negocio y guía de migración.
+- Fase 2: autenticación, alta del negocio/dispositivos, estado de conexión y sincronización incremental.
 - Fase 3: movimientos de inventario y folios atómicos; resolución de conflictos.
-- Fase 4: empaquetado Windows EXE y compilación Android con configuración de backend.
+- Fase 4: empaquetado Windows y compilación Android con configuración del backend.
 - Fase 5: pruebas con varios dispositivos, desconexión, reconexión y restauración.
 
-## Pruebas de aceptación
+## Pruebas pendientes antes de usar datos reales
 
-- Un registro creado en Android aparece en Windows y viceversa.
-- Dos ventas simultáneas del mismo producto no pierden movimientos de stock.
-- Un dispositivo desconectado conserva sus operaciones y las sube al reconectar.
-- Reintentar una sincronización no duplica ventas ni gastos.
+- Un usuario sin sesión no puede leer ni escribir tablas.
+- Un miembro solo ve los negocios a los que pertenece.
+- Un viewer no puede insertar ni modificar registros.
+- Un cashier no puede modificar `settings`.
+- Un admin no puede asignar el rol owner ni admin.
 - Un usuario de otro negocio no puede leer ni modificar datos.
-- Una restauración de respaldo local no dispara una sustitución remota accidental.
+- Reintentar una sincronización no duplica ventas/gastos.
+- Dos ventas simultáneas no pierden movimientos de inventario.
+- Restaurar un respaldo local no sustituye automáticamente los datos remotos.
+
+El SQL de esta fase es una base de permisos, no reemplaza las pruebas automatizadas RLS (`supabase test db`) ni la revisión de la configuración de API del proyecto.
