@@ -35,8 +35,20 @@ La base SQL revoca privilegios de cliente por defecto y concede únicamente lect
 1. Crear el proyecto Supabase y conservar Project URL y Publishable key.
 2. Crear la cuenta propietaria en **Authentication → Users** (o habilitar el método de registro que se vaya a utilizar).
 3. Abrir **SQL Editor → New query**, pegar el contenido completo de `supabase/schema.sql` de esta rama y ejecutar una sola vez.
-4. Iniciar sesión en la aplicación futura con la cuenta propietaria y llamar a la función `create_business` con el nombre del negocio. La función crea el negocio y su membresía `owner` en una sola transacción.
-5. Para dar acceso a otro usuario, crear primero su cuenta en Auth y después llamar a `add_business_member` con el UUID de Auth y el rol permitido. Solo el propietario puede asignar `admin`; owner/admin pueden asignar cashier o viewer.
+4. Para el primer arranque (antes de que exista la pantalla de configuración en METZTLI Caja), crear el negocio y vincular al propietario desde **SQL Editor**, usando la cuenta Auth creada en el paso 2. Ejecutar este bloque y sustituir el UUID:
+
+   ```sql
+   insert into public.businesses (name)
+   values ('METZTLI Caja')
+   returning id;
+
+   -- Copiar el UUID devuelto y el UUID del usuario de Authentication → Users.
+   insert into public.business_members (business_id, user_id, role)
+   values ('UUID_DEL_NEGOCIO', 'UUID_DEL_USUARIO_AUTH', 'owner');
+   ```
+
+   Este alta manual es solo para el bootstrap administrativo inicial; la función `create_business` realizará el alta atómica desde la futura interfaz autenticada.
+5. Para dar acceso a otro usuario, crear primero su cuenta en Auth y después llamar a `add_business_member` con el UUID de Auth y el rol permitido. Solo el propietario puede asignar `admin`; owner/admin pueden asignar cashier o viewer. Mientras no exista la interfaz de administración, la llamada se podrá ejecutar desde un cliente autenticado o mediante el procedimiento administrativo controlado.
 6. Configurar Project URL y Publishable key en el proceso de compilación. Nunca colocar la contraseña de la base de datos ni una clave `service_role`/secret en el APK o EXE.
 
 **No insertar manualmente miembros ni ejecutar importaciones de IndexedDB.** El procedimiento de alta inicial desde la app se conectará en una fase posterior; por ahora, el SQL puede prepararse, pero no se considera validado hasta pasar las pruebas descritas abajo.
