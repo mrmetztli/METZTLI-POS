@@ -136,7 +136,7 @@ export async function render(host) {
           renderWorkspace();setStatus('Cuenta creada correctamente.');
         }
       } else {
-        context=await signIn(email,password); context.isPlatformAdmin=await getPlatformAdminStatus(); renderWorkspace();
+        context=await signIn(email,password); context.isPlatformAdmin=await getPlatformAdminStatus().catch(()=>false); renderWorkspace();
         setStatus(context.businesses.length?'Sesión iniciada.':'Sesión iniciada. Crea tu primer negocio para comenzar.');
         await finishInvitation();
       }
@@ -150,7 +150,7 @@ export async function render(host) {
       await acceptInvitation(invitationId);
       history.replaceState(null, '', location.pathname + location.hash);
       context=await getCloudContext();
-      context.isPlatformAdmin=await getPlatformAdminStatus();
+      context.isPlatformAdmin=await getPlatformAdminStatus().catch(()=>false);
       renderWorkspace();
       setStatus('Invitación aceptada. Ya tienes acceso al negocio.');
     } catch(err) {
@@ -159,6 +159,6 @@ export async function render(host) {
   }
   try {
     context=await getCloudContext();
-    if(context){context.isPlatformAdmin=await getPlatformAdminStatus();renderWorkspace();setStatus('Sesión recuperada. Membresías verificadas con el servidor.'); await finishInvitation();}
+    if(context){context.isPlatformAdmin=await getPlatformAdminStatus().catch(()=>false);renderWorkspace();setStatus('Sesión recuperada. Membresías verificadas con el servidor.'); await finishInvitation();}
   } catch(err){setStatus(err.message);}
 }
