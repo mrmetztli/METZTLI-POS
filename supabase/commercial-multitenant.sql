@@ -43,6 +43,7 @@ revoke all on public.business_subscriptions from anon, authenticated;
 
 -- Los dueños/admins solo pueden consultar invitaciones de su propio negocio.
 grant select on public.business_invitations to authenticated;
+drop policy if exists "business admins can view invitations" on public.business_invitations;
 create policy "business admins can view invitations"
   on public.business_invitations for select to authenticated
   using (
@@ -58,7 +59,12 @@ create policy "business admins can view invitations"
 revoke all on function public.add_business_member(uuid, uuid, text)
   from public, anon, authenticated;
 
-create or replace function public.accept_business_invitation(p_invitation_id uuid)
+drop function if exists public.accept_business_invitation(uuid);
+
+create or replace function public.accept_business_invitation(
+  p_invitation_id uuid,
+  p_token text
+)
 returns uuid
 language plpgsql
 security definer
@@ -73,6 +79,11 @@ begin
     raise exception 'Debes iniciar sesión con un correo verificado'
       using errcode = '28000';
   end if;
+  if p_invitation_id is null or p_token is null
+     or length(p_token) < 32 or length(p_token) > 256 then
+    raise exception 'La invitación no es válida'
+      using errcode = '22023';
+  end if;
 
   select * into invitation
   from public.business_invitations
@@ -82,7 +93,9 @@ begin
   if not found
      or invitation.accepted_at is not null
      or invitation.expires_at <= now()
-     or invitation.email <> current_email then
+     or invitation.email <> current_email
+     or invitation.token_hash is distinct from
+        encode(public.digest(convert_to(p_token, 'UTF8'), 'sha256'), 'hex') then
     raise exception 'La invitación no existe, venció o no corresponde a tu correo'
       using errcode = '42501';
   end if;
@@ -99,8 +112,8 @@ begin
 end;
 $$;
 
-revoke all on function public.accept_business_invitation(uuid) from public, anon;
-grant execute on function public.accept_business_invitation(uuid) to authenticated;
+revoke all on function public.accept_business_invitation(uuid, text) from public, anon;
+grant execute on function public.accept_business_invitation(uuid, text) to authenticated;
 
 -- El propietario puede quitar miembros; no puede quitarse a sí mismo
 -- ni eliminar/cambiar al propietario mediante este procedimiento.
