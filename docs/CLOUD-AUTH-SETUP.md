@@ -1,53 +1,35 @@
-# Fase 2A — acceso a la nube
+# Acceso comercial multiempresa — METZTLI Caja
 
-## Alcance
+## Alcance de esta fase
 
-Esta entrega agrega la primera pantalla de conexión de METZTLI Caja con el proyecto Supabase ya creado.
+- Registro de cuenta por correo y contraseña.
+- Inicio/cierre de sesión con Supabase Auth.
+- Creación de negocio mediante `create_business`; el creador queda como owner.
+- Consulta de todas las membresías y selección del negocio activo.
+- Registro independiente de cada instalación en `sync_devices`.
+- Invitación de empleados mediante Edge Function (owner/admin según rol).
+- Alta administrada por METZTLI mediante Edge Function exclusiva para platform admins.
 
-Incluye:
-- Configuración del Project URL, publishable key y UUID del negocio.
-- Inicio de sesión con Supabase Auth mediante HTTPS.
-- Recuperación y renovación de sesión.
-- Verificación de que el usuario pertenece al negocio METZTLI Caja y lectura de su rol.
-- Registro de la instalación en `sync_devices`.
-- Sección **Configuración → Nube**.
-- Archivos incluidos en el shell del service worker para que la app siga abriendo offline.
+Esta fase no sincroniza ventas, inventario ni otros registros y no importa datos de IndexedDB.
 
-## Lo que NO hace todavía
+## Configuración
 
-- No sincroniza productos, ventas, clientes, gastos ni configuración.
-- No importa ni borra datos de IndexedDB.
-- No activa sincronización en segundo plano.
-- No resuelve folios ni movimientos de inventario entre dispositivos.
-- No incluye todavía una aplicación Windows instalable.
-
-La pantalla lo indica expresamente. No debe anunciarse como sincronización terminada.
-
-## Configuración y seguridad
-
-`caja/js/cloud-config.js` contiene únicamente la URL, la publishable key y el UUID del negocio. La publishable key es una clave pública para clientes y queda protegida por las políticas RLS; nunca debe sustituirse por una `service_role` o secret key.
-
-La sesión Auth se conserva en el almacenamiento local del navegador mediante localStorage para permitir que el usuario no tenga que iniciar sesión cada vez. El usuario puede cerrar sesión en cada dispositivo desde Configuración → Nube. No se guarda la contraseña.
+1. Aplicar primero `supabase/schema.sql` y después `supabase/commercial-multitenant.sql`, solo tras revisión en un entorno de pruebas.
+2. Configurar Auth → URL Configuration y habilitar confirmación de correo según la política comercial.
+3. Desplegar las Edge Functions `business-invite-member` y `platform-invite-customer`.
+4. Definir `SUPABASE_URL`, `SUPABASE_ANON_KEY` (publishable key), `SUPABASE_SERVICE_ROLE_KEY` y `APP_SITE_URL` como secrets de Supabase Functions.
+5. Registrar el primer administrador METZTLI insertando su UID en `platform_admins` desde un canal administrativo seguro.
+6. No incluir la clave service role en la app, APK, EXE, variables públicas ni repositorio.
 
 ## Prueba manual
 
-1. Instalar la compilación de prueba en un dispositivo que tenga conexión a internet.
-2. Abrir **Configuración → Nube**.
-3. Iniciar sesión con el correo y contraseña de la cuenta Auth propietaria.
-4. Confirmar que aparece el negocio METZTLI Caja y el rol `owner`.
-5. Revisar en Supabase → Table Editor → `sync_devices` que se registró esa instalación.
-6. Cerrar sesión y comprobar que vuelve a mostrarse el formulario.
-7. Repetir en otro dispositivo para confirmar que ambos quedan registrados por separado.
-8. Comprobar que la app sigue abriendo sin conexión. El inicio de sesión inicial sí requiere internet.
+- Registrar una cuenta de prueba, confirmar correo si está habilitado e iniciar sesión.
+- Crear dos negocios con usuarios distintos y verificar que cada usuario solo ve sus membresías.
+- Invitar un cajero desde un negocio; aceptar invitación con el correo destinatario y verificar el rol.
+- Comprobar que un admin no puede invitar otro admin y que un usuario no miembro no puede invitar a nadie.
+- Probar revocación de membresía y comprobar que la sesión ya no puede acceder a datos del negocio.
+- Iniciar sesión desde dos dispositivos y verificar dos registros independientes en sync_devices.
 
-Si el usuario inicia sesión pero no aparece en `business_members`, revisar que el UUID de Auth sea miembro del UUID de negocio configurado. No compartir contraseñas ni tokens en capturas.
+## Importante
 
-## Próximas fases obligatorias
-
-Antes de sincronizar datos reales se desarrollará y probará:
-1. Cola local de operaciones idempotentes y sincronización incremental.
-2. Revisión/conflictos y tombstones.
-3. Movimientos de inventario y folios atómicos del lado servidor.
-4. Pruebas RLS entre usuarios y negocios.
-5. Respaldo y restauración con vista previa antes de cualquier importación.
-6. Pruebas multi-dispositivo, offline/reconexión y restauración.
+La sincronización real sigue deshabilitada. No se limpia, migra ni sobrescribe IndexedDB. La selección de negocio solo establece contexto de acceso; la futura capa de sincronización debe particionar cachés/outbox por business_id y volver a validar membresía y permisos en servidor.
