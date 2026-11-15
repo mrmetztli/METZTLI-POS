@@ -1,6 +1,3 @@
-// Configuración pública del proyecto Supabase de METZTLI Caja.
-// La publishable key está diseñada para clientes; nunca agregues aquí service_role ni secret keys.
+// Configuración pública de Supabase. No fijar aquí un negocio: cada usuario elige sus membresías.
 export const SUPABASE_URL = 'https://itskrcvdauixxowyyqnz.supabase.co';
-export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_O_p_ig4785Vzjz4TOrALKg_UVLI7G6Q';
-export const BUSINESS_ID = '64eb5dee-32b8-4a4e-a5c4-03ce3ce4d2e1';
-export const BUSINESS_NAME = 'METZTLI Caja';
+export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_O_p_ig4785Vzjz4OrALKg_UVLI7G6Q';
