@@ -51,7 +51,10 @@ Deno.serve(async (req) => {
     });
     if (insertError) return json({ error: insertError.message }, 400);
 
-    const redirectTo = appUrl.replace(/\/$/, "") + "/?invitation=" + encodeURIComponent(invitationId);
+    const redirectUrl = new URL(appUrl);
+    redirectUrl.searchParams.set("invitation", invitationId);
+    redirectUrl.searchParams.set("token", randomToken);
+    const redirectTo = redirectUrl.toString();
     const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(normalizedEmail, {
       redirectTo,
       data: { metztli_business_invitation: invitationId }
