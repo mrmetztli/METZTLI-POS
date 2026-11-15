@@ -151,6 +151,10 @@ export async function inviteBusinessMember(email, role, businessId) {
     method:'POST', body:{email:String(email).trim().toLowerCase(),role,business_id:businessId}
   });
 }
+export async function getPlatformAdminStatus() {
+  const result = await authed('/functions/v1/platform-admin-status');
+  return Boolean(result?.is_platform_admin);
+}
 export async function invitePlatformCustomer(email) {
   return authed('/functions/v1/platform-invite-customer', {
     method:'POST', body:{email:String(email).trim().toLowerCase()}
