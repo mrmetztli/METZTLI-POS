@@ -96,11 +96,11 @@ export async function render(host) {
       catch(err){setStatus(err.message);} finally{button.disabled=false;}
     });
     workspace.querySelector('#cloud-invite-member')?.addEventListener('submit',async e=>{
-      e.preventDefault(); const button=e.submitter; button.disabled=true;
+      e.preventDefault(); const form=e.currentTarget, button=e.submitter; button.disabled=true;
       try {
-        const data=new FormData(e.currentTarget);
+        const data=new FormData(form);
         const result=await inviteBusinessMember(data.get('email'),data.get('role'),context.activeBusiness.id);
-        e.currentTarget.reset();
+        form.reset();
         if(result.email_sent) setStatus('Invitación enviada por correo. El empleado debe aceptarla.');
         else if(result.acceptance_url) {
           setStatus('La cuenta ya existía. Comparte este enlace de aceptación con el empleado: ' + result.acceptance_url);
@@ -108,11 +108,11 @@ export async function render(host) {
       } catch(err){setStatus(err.message);} finally{button.disabled=false;}
     });
     workspace.querySelector('#cloud-platform-invite')?.addEventListener('submit',async e=>{
-      e.preventDefault(); const button=e.submitter; button.disabled=true;
+      e.preventDefault(); const form=e.currentTarget, button=e.submitter; button.disabled=true;
       try {
-        const email=new FormData(e.currentTarget).get('email');
+        const email=new FormData(form).get('email');
         await invitePlatformCustomer(email);
-        e.currentTarget.reset(); setStatus('Invitación de cliente enviada por correo.');
+        form.reset(); setStatus('Invitación de cliente enviada por correo.');
       } catch(err){setStatus(err.message);} finally{button.disabled=false;}
     });
     workspace.querySelector('#cloud-logout')?.addEventListener('click',async()=>{
@@ -150,6 +150,7 @@ export async function render(host) {
       await acceptInvitation(invitationId);
       history.replaceState(null, '', location.pathname + location.hash);
       context=await getCloudContext();
+      context.isPlatformAdmin=await getPlatformAdminStatus();
       renderWorkspace();
       setStatus('Invitación aceptada. Ya tienes acceso al negocio.');
     } catch(err) {
