@@ -5,22 +5,26 @@ Deploy from the repository root with Supabase CLI after linking the intended pro
 ```sh
 supabase functions deploy business-invite-member
 supabase functions deploy platform-invite-customer
+supabase functions deploy platform-admin-status
 ```
 
-Set secrets in the Supabase project (never in the client app):
+Configure the project secrets (Supabase normally supplies URL and keys to the Edge Function runtime; verify them in the dashboard):
 
 ```sh
-supabase secrets set SUPABASE_URL="https://YOUR_PROJECT.supabase.co"
-supabase secrets set SUPABASE_ANON_KEY="YOUR_PUBLISHABLE_OR_ANON_KEY"
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVICE_ROLE_SECRET"
 supabase secrets set APP_SITE_URL="https://YOUR_APP_ORIGIN"
 ```
 
-The service role key is used only inside the Edge Function runtime. Never put it in GitHub Actions artifacts, APK, EXE, JS, or client configuration.
+If the default environment variables are not present in the project, configure `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` as server-side secrets. The service role key is used only inside Edge Function runtime. Never put it in GitHub Actions artifacts, APK, EXE, JS, or client configuration.
+
+## Functions
+
+- `business-invite-member`: validates caller membership/role, creates an expiring invitation and sends Auth invite email. If the employee already has an Auth account, it returns an acceptance URL; the employee must log in with the exact invited email before accepting.
+- `platform-admin-status`: tells the authenticated client whether the user is in `platform_admins`; the table itself is never exposed to client roles.
+- `platform-invite-customer`: only platform admins may invite customer accounts. The invited customer creates their own business after signing in.
 
 Before production:
 - Configure Auth redirect allow-list to include APP_SITE_URL and the invitation callback.
 - Configure SMTP/custom email templates and test delivery.
 - Add rate limiting and abuse monitoring.
 - Test with a platform admin, owner, admin, cashier, viewer, and unrelated user.
-- The employee acceptance screen must read the `invitation` query parameter and call authenticated RPC `accept_business_invitation(p_invitation_id)` after email confirmation/login. Do not trust the query parameter by itself; the SQL function verifies the authenticated email and invitation state.
+- The employee acceptance screen reads the `invitation` query parameter and calls authenticated RPC `accept_business_invitation(p_invitation_id)` after login. The SQL function verifies the authenticated email and invitation state; the query parameter alone grants no access.
