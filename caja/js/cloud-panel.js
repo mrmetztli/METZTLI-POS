@@ -1,7 +1,7 @@
 // Configuración → Nube: registro, acceso, selección de negocio y gestión básica de equipo.
 import {
   signUp, signIn, signOut, getCloudContext, createBusiness, selectBusiness,
-  inviteBusinessMember, invitePlatformCustomer
+  inviteBusinessMember, invitePlatformCustomer, acceptInvitation
 } from './cloud-auth.js';
 import { escapeHtml } from './utilities.js';
 
@@ -118,12 +118,26 @@ export async function render(host) {
       } else {
         context=await signIn(email,password);renderWorkspace();
         setStatus(context.businesses.length?'Sesión iniciada.':'Sesión iniciada. Crea tu primer negocio para comenzar.');
+        await finishInvitation();
       }
     } catch(err){setStatus(err.message||'No se pudo completar el acceso.');}
     finally{submit.disabled=false;}
   });
+  const invitationId = new URLSearchParams(location.search).get('invitation');
+  async function finishInvitation() {
+    if (!invitationId || !context) return;
+    try {
+      await acceptInvitation(invitationId);
+      history.replaceState(null, '', location.pathname + location.hash);
+      context=await getCloudContext();
+      renderWorkspace();
+      setStatus('Invitación aceptada. Ya tienes acceso al negocio.');
+    } catch(err) {
+      setStatus('No se pudo aceptar la invitación: ' + err.message + '. Inicia sesión con el correo al que fue enviada.');
+    }
+  }
   try {
     context=await getCloudContext();
-    if(context){renderWorkspace();setStatus('Sesión recuperada. Membresías verificadas con el servidor.');}
+    if(context){renderWorkspace();setStatus('Sesión recuperada. Membresías verificadas con el servidor.'); await finishInvitation();}
   } catch(err){setStatus(err.message);}
 }
