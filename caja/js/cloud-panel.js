@@ -1,7 +1,7 @@
 // Configuración → Nube: registro, acceso, selección de negocio y gestión básica de equipo.
 import {
   signUp, signIn, signOut, getCloudContext, createBusiness, selectBusiness,
-  inviteBusinessMember, invitePlatformCustomer, acceptInvitation
+  inviteBusinessMember, invitePlatformCustomer, acceptInvitation, getPlatformAdminStatus
 } from './cloud-auth.js';
 import { escapeHtml } from './utilities.js';
 
@@ -75,6 +75,14 @@ export async function render(host) {
             <button class="btn" type="submit">Enviar invitación</button>
             <p class="muted small">El invitado debe aceptar con el mismo correo. Solo el dueño puede invitar administradores.</p>
           </form>` : ''}
+        ${context.isPlatformAdmin ? `
+          <form id="cloud-platform-invite" class="stack">
+            <h3>Administración METZTLI</h3>
+            <label for="cloud-customer-email">Invitar nuevo cliente</label>
+            <input id="cloud-customer-email" name="email" type="email" required maxlength="254">
+            <button class="btn" type="submit">Enviar invitación al cliente</button>
+            <p class="muted small">El cliente recibirá acceso para crear su propio negocio. Este permiso solo aparece a administradores de plataforma.</p>
+          </form>` : ''}
         <button class="btn" id="cloud-logout" type="button">Cerrar sesión</button>
       </div>`;
     const selector=workspace.querySelector('#cloud-business-select');
@@ -99,6 +107,14 @@ export async function render(host) {
         } else setStatus('Invitación creada.');
       } catch(err){setStatus(err.message);} finally{button.disabled=false;}
     });
+    workspace.querySelector('#cloud-platform-invite')?.addEventListener('submit',async e=>{
+      e.preventDefault(); const button=e.submitter; button.disabled=true;
+      try {
+        const email=new FormData(e.currentTarget).get('email');
+        await invitePlatformCustomer(email);
+        e.currentTarget.reset(); setStatus('Invitación de cliente enviada por correo.');
+      } catch(err){setStatus(err.message);} finally{button.disabled=false;}
+    });
     workspace.querySelector('#cloud-logout')?.addEventListener('click',async()=>{
       try {await signOut();context=null;renderWorkspace();setStatus('Sesión cerrada en este dispositivo.');}
       catch(e){setStatus(e.message);}
@@ -120,7 +136,7 @@ export async function render(host) {
           renderWorkspace();setStatus('Cuenta creada correctamente.');
         }
       } else {
-        context=await signIn(email,password);renderWorkspace();
+        context=await signIn(email,password); context.isPlatformAdmin=await getPlatformAdminStatus(); renderWorkspace();
         setStatus(context.businesses.length?'Sesión iniciada.':'Sesión iniciada. Crea tu primer negocio para comenzar.');
         await finishInvitation();
       }
@@ -142,6 +158,6 @@ export async function render(host) {
   }
   try {
     context=await getCloudContext();
-    if(context){renderWorkspace();setStatus('Sesión recuperada. Membresías verificadas con el servidor.'); await finishInvitation();}
+    if(context){context.isPlatformAdmin=await getPlatformAdminStatus();renderWorkspace();setStatus('Sesión recuperada. Membresías verificadas con el servidor.'); await finishInvitation();}
   } catch(err){setStatus(err.message);}
 }
