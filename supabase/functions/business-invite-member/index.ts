@@ -57,10 +57,20 @@ Deno.serve(async (req) => {
       data: { metztli_business_invitation: invitationId }
     });
     if (inviteError) {
+      // Si la cuenta ya existe, el dueño puede compartir el enlace de aceptación.
+      // La RPC exige que la sesión autenticada tenga el mismo correo invitado.
+      const alreadyRegistered = /already registered|user exists|already been registered/i.test(inviteError.message);
+      if (alreadyRegistered) {
+        return json({
+          ok: true, email_sent: false, invitation_id: invitationId,
+          acceptance_url: redirectTo, expires_in_days: 7,
+          message: "La cuenta ya existe. Comparte el enlace con el empleado; debe iniciar sesión con el correo invitado."
+        });
+      }
       await admin.from("business_invitations").delete().eq("id", invitationId);
       return json({ error: inviteError.message }, 400);
     }
-    return json({ ok: true, invitation_id: invitationId, expires_in_days: 7 });
+    return json({ ok: true, email_sent: true, invitation_id: invitationId, expires_in_days: 7 });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Unexpected server error" }, 500);
   }
