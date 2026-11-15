@@ -140,6 +140,12 @@ async function registerDevice(userId, businessId) {
     });
   }
 }
+export async function acceptInvitation(invitationId) {
+  if (!invitationId) throw new Error('Falta el identificador de invitación.');
+  return authed('/rest/v1/rpc/accept_business_invitation', {
+    method:'POST', body:{p_invitation_id:invitationId}
+  });
+}
 export async function inviteBusinessMember(email, role, businessId) {
   return authed('/functions/v1/business-invite-member', {
     method:'POST', body:{email:String(email).trim().toLowerCase(),role,business_id:businessId}
