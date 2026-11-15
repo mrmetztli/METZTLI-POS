@@ -143,11 +143,13 @@ export async function render(host) {
     } catch(err){setStatus(err.message||'No se pudo completar el acceso.');}
     finally{submit.disabled=false;}
   });
-  const invitationId = new URLSearchParams(location.search).get('invitation');
+  const invitationParams = new URLSearchParams(location.search);
+  const invitationId = invitationParams.get('invitation');
+  const invitationToken = invitationParams.get('token');
   async function finishInvitation() {
     if (!invitationId || !context) return;
     try {
-      await acceptInvitation(invitationId);
+      await acceptInvitation(invitationId, invitationToken);
       history.replaceState(null, '', location.pathname + location.hash);
       context=await getCloudContext();
       context.isPlatformAdmin=await getPlatformAdminStatus().catch(()=>false);
