@@ -9,11 +9,12 @@ import * as appearance from './settings-appearance.js';
 import * as salesCfg from './settings-sales.js';
 import * as expensesCfg from './settings-expenses.js';
 import * as data from './settings-data.js';
+import * as cloud from './cloud-panel.js';
 import { escapeHtml } from './utilities.js';
 
 const SECTIONS = [
   ['business', 'Negocio'], ['catalog', 'Catálogo'], ['sales', 'Ventas'], ['expenses', 'Gastos'], ['appearance', 'Personalización'],
-  ['data', 'Datos'], ['app', 'App'], ['clients', 'Clientes'], ['about', 'Sobre nosotros']
+  ['data', 'Datos'], ['app', 'App'], ['cloud', 'Nube'], ['clients', 'Clientes'], ['about', 'Sobre nosotros']
 ];
 const ui = { section: 'business', expensesTab: 'list' }; // se recuerdan mientras la app esté abierta
 let mounted = null; // módulo montado ahora (para llamar a su destroy al salir)
@@ -56,6 +57,7 @@ const BUILDERS = {
   appearance: async (host) => appearance.render(host),
   data: async (host) => data.render(host, { part: 'backup' }),
   app: async (host) => data.render(host, { part: 'app' }),
+  cloud: async (host) => cloud.render(host),
   clients: async (host) => { mounted = await mountModule('./clients.js', host); },
   about: async (host) => {
     host.innerHTML = `<section class="section"><h2>Sobre nosotros</h2>
