@@ -91,8 +91,12 @@ export async function render(host) {
       e.preventDefault(); const button=e.submitter; button.disabled=true;
       try {
         const data=new FormData(e.currentTarget);
-        await inviteBusinessMember(data.get('email'),data.get('role'),context.activeBusiness.id);
-        e.currentTarget.reset(); setStatus('Invitación enviada. El empleado debe aceptar el correo.');
+        const result=await inviteBusinessMember(data.get('email'),data.get('role'),context.activeBusiness.id);
+        e.currentTarget.reset();
+        if(result.email_sent) setStatus('Invitación enviada por correo. El empleado debe aceptarla.');
+        else if(result.acceptance_url) {
+          setStatus('La cuenta ya existía. Comparte este enlace de aceptación con el empleado: ' + result.acceptance_url);
+        } else setStatus('Invitación creada.');
       } catch(err){setStatus(err.message);} finally{button.disabled=false;}
     });
     workspace.querySelector('#cloud-logout')?.addEventListener('click',async()=>{
