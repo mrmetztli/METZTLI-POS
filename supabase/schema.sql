@@ -157,12 +157,13 @@ declare
 begin
   caller_role := private.user_business_role(p_business_id);
 
-  if caller_role not in ('owner', 'admin') then
+  if caller_role is null or caller_role not in ('owner', 'admin') then
     raise exception 'No tienes permiso para administrar miembros'
       using errcode = '42501';
   end if;
 
-  if p_user_id is null or p_role not in ('admin', 'cashier', 'viewer') then
+  if p_user_id is null or p_role is null
+     or p_role not in ('admin', 'cashier', 'viewer') then
     raise exception 'Usuario o rol no válido'
       using errcode = '22023';
   end if;
