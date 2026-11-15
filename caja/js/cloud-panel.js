@@ -80,8 +80,7 @@ export async function render(host) {
     } finally { button.disabled = false; }
   });
 
-  window.addEventListener('online', () => { network.textContent = 'Conectado a internet'; });
-  window.addEventListener('offline', () => { network.textContent = 'Sin internet'; });
+  // La disponibilidad se consulta al abrir el panel y antes de iniciar sesión.
   network.textContent = navigator.onLine ? 'Internet disponible' : 'Sin internet';
 
   try {
