@@ -49,7 +49,26 @@ async function refreshSession(s) {
     .finally(() => { refreshPromise = null; });
   return refreshPromise;
 }
+function consumeAuthRedirect() {
+  // Supabase Auth implicit callback: invite/confirmation tokens arrive in the URL fragment.
+  const fragment = location.hash.startsWith('#') ? location.hash.slice(1) : '';
+  const params = new URLSearchParams(fragment);
+  const access = params.get('access_token'), refresh = params.get('refresh_token');
+  if (!access || !refresh) return;
+  const expiresIn = Number(params.get('expires_in') || 3600);
+  saveSession({
+    access_token: access,
+    refresh_token: refresh,
+    token_type: params.get('token_type') || 'bearer',
+    expires_in: expiresIn,
+    expires_at: Math.floor(Date.now()/1000) + expiresIn,
+    user: null
+  });
+  // Remove tokens from the visible URL without discarding the invitation query.
+  history.replaceState(null, '', location.pathname + location.search);
+}
 export async function getSession() {
+  consumeAuthRedirect();
   let s = readSession();
   if (!s) return null;
   if (Number(s.expires_at || 0) * 1000 < Date.now() + 60000) s = await refreshSession(s);
