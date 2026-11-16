@@ -31,6 +31,7 @@ async function load() {
 export async function render(container) {
   root = container;
   await load();
+  if (ui.tab === 'cancel' && access.role !== 'owner' && !access.permissions.cancel_sales) ui.tab = 'sell';
   draw();
 }
 
@@ -49,6 +50,7 @@ function drawScreen() {
       <div class="seg" role="group" aria-label="Sección">
         <button type="button" data-tab="sell" aria-pressed="${ui.tab === 'sell'}">Nueva venta</button>
         <button type="button" data-tab="free" aria-pressed="${ui.tab === 'free'}">Venta libre</button>
+        ${access.role === 'owner' || access.permissions.cancel_sales ? `<button type="button" data-tab="cancel" aria-pressed="${ui.tab === 'cancel'}">Cancelar venta</button>` : ''}
       </div>
     </header><div id="tab"></div>`;
   root.querySelector('.seg').addEventListener('click', async (e) => {
@@ -60,7 +62,47 @@ function drawScreen() {
   });
   const host = root.querySelector('#tab');
   if (ui.tab === 'free') drawFree(host);
+  else if (ui.tab === 'cancel') drawCancel(host);
   else drawSell(host);
+}
+
+/* ---------- Cancelación por folio (sin mostrar el historial) ---------- */
+
+function drawCancel(host) {
+  host.innerHTML = `
+    <section class="card stack" style="max-width:560px">
+      <h2>Cancelar una venta</h2>
+      <p class="muted">Escribe el folio exacto de la venta que necesitas cancelar. Esta pantalla no muestra el historial completo.</p>
+      <form id="cancel-sale-form" class="stack">
+        <div class="field">
+          <label for="cancel-sale-folio">Folio de venta</label>
+          <input id="cancel-sale-folio" class="input" maxlength="50" placeholder="Ej. V-0001" required>
+        </div>
+        <div class="field">
+          <label for="cancel-sale-reason">Motivo de cancelación</label>
+          <textarea id="cancel-sale-reason" class="input textarea" rows="3" maxlength="300" placeholder="Explica por qué se cancela esta venta" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-danger" id="cancel-sale-submit">Cancelar venta</button>
+      </form>
+      <p class="muted small">La operación queda registrada y las existencias se restauran cuando corresponde. No se puede deshacer.</p>
+    </section>`;
+  host.querySelector('#cancel-sale-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = host.querySelector('#cancel-sale-submit');
+    const folio = host.querySelector('#cancel-sale-folio').value.trim();
+    const reason = host.querySelector('#cancel-sale-reason').value.trim();
+    if (reason.length < 3) { toast('Escribe un motivo de al menos 3 caracteres.', 'error'); return; }
+    button.disabled = true;
+    try {
+      const rules = getConfig().sales;
+      const result = await store.cancelSaleByFolio(folio, reason, { enabled: rules.cancelEnabled, maxDays: rules.cancelDays });
+      toast(`Venta ${result.folio} cancelada correctamente`, 'ok');
+      host.querySelector('#cancel-sale-folio').value = '';
+      host.querySelector('#cancel-sale-reason').value = '';
+    } catch (error) {
+      await openModal({ title: 'No se pudo cancelar la venta', message: error.message });
+    } finally { button.disabled = false; }
+  });
 }
 
 /* ---------- Vender ---------- */
