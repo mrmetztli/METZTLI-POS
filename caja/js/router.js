@@ -80,7 +80,7 @@ async function show() {
   const access = await getPermissionContext();
   if (access.role === 'cashier' || access.role === 'unknown') {
     let allowed = ['ventas', 'inicio'].includes(group.id);
-    if (group.id === 'configuracion' && access.role === 'cashier') {
+    if (group.id === 'configuracion' && (access.role === 'cashier' || access.role === 'unknown')) {
       const section = new URLSearchParams(route.split('?')[1] || '').get('s') || 'business';
       const catalogAccess = ['catalog_view', 'products_create', 'products_edit', 'prices_edit', 'stock_adjust'].some((key) => access.permissions[key]);
       allowed = section === 'account' ||
