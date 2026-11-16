@@ -1,7 +1,7 @@
 // auth-ui.js — Interfaz de login, registro, equipo y respaldo en la nube
 import * as cloud from './supabase.js';
 import * as db from './database.js';
-import { toast, confirmDialog, promptDialog } from './components.js';
+import { toast } from './components.js';
 import { escapeHtml } from './utilities.js';
 
 let currentMembership = null;
@@ -14,7 +14,7 @@ export async function getCurrentRole() {
       currentMembership = null;
     }
   }
-  return currentMembership?.role || null; // 'owner' | 'cashier' | null
+  return currentMembership?.role || null;
 }
 
 export async function isOwner() {
@@ -30,7 +30,6 @@ export function renderAccountSection(host) {
       </div>
     </section>
   `;
-
   loadAccountUI(host.querySelector('#account-box'));
 }
 
@@ -39,7 +38,6 @@ async function loadAccountUI(box) {
     const session = await cloud.getSession();
 
     if (!session) {
-      // No hay sesión → mostrar login / registro
       box.innerHTML = `
         <p class="muted small">Puedes usar la app sin cuenta. Crea una cuenta solo cuando quieras respaldar en la nube o agregar cajeros.</p>
         <div class="stack" style="gap:12px; max-width:360px">
@@ -59,8 +57,9 @@ async function loadAccountUI(box) {
         if (!email || !pass) return toast('Escribe correo y contraseña', 'error');
         try {
           await cloud.signIn(email, pass);
-          toast('Sesión iniciada', 'ok');
           await afterLogin();
+          toast('Sesión iniciada', 'ok');
+          currentMembership = null;
           loadAccountUI(box);
         } catch (err) {
           toast(err.message || 'Error al iniciar sesión', 'error');
@@ -74,20 +73,19 @@ async function loadAccountUI(box) {
         if (!email || pass.length < 6) return toast('Correo y contraseña de al menos 6 caracteres', 'error');
         try {
           await cloud.signUp(email, pass, name);
-          toast('Cuenta creada. Revisa tu correo si pide confirmación, o inicia sesión.', 'ok');
+          toast('Cuenta creada. Ahora inicia sesión.', 'ok');
         } catch (err) {
           toast(err.message || 'Error al crear cuenta', 'error');
         }
       };
-
       return;
     }
 
-    // Hay sesión
+    // Hay sesión → intentar aceptar invitación pendiente
+    await cloud.acceptPendingInviteIfAny();
     currentMembership = await cloud.getMyMembership();
 
     if (!currentMembership) {
-      // Primera vez → crear negocio
       box.innerHTML = `
         <p>Bienvenido. Vamos a crear tu negocio en la nube.</p>
         <input id="biz-name" type="text" class="input" placeholder="Nombre del negocio" value="Mi negocio">
@@ -112,7 +110,7 @@ async function loadAccountUI(box) {
     const roleLabel = currentMembership.role === 'owner' ? 'Propietario' : 'Cajero';
     const bizName = currentMembership.businesses?.name || 'Negocio';
 
-    box.innerHTML = `
+    let html = `
       <dl class="kv">
         <dt>Correo</dt><dd>${escapeHtml(session.user.email)}</dd>
         <dt>Negocio</dt><dd>${escapeHtml(bizName)}</dd>
@@ -124,6 +122,24 @@ async function loadAccountUI(box) {
       </div>
       <p class="muted small" id="backup-status" style="margin-top:8px"></p>
     `;
+
+    // Solo el owner ve la gestión de cajeros
+    if (currentMembership.role === 'owner') {
+      html += `
+        <div style="margin-top:28px">
+          <h3>Cajeros</h3>
+          <p class="muted small">Invita a alguien por correo. Cuando cree su cuenta e inicie sesión con ese correo, se unirá automáticamente como cajero.</p>
+          <div class="row" style="gap:8px; margin-top:12px; max-width:420px">
+            <input id="invite-email" type="email" class="input" placeholder="correo@ejemplo.com" style="flex:1">
+            <button class="btn btn-primary" id="btn-invite" type="button">Invitar</button>
+          </div>
+          <div id="members-list" style="margin-top:16px"></div>
+          <div id="invites-list" style="margin-top:12px"></div>
+        </div>
+      `;
+    }
+
+    box.innerHTML = html;
 
     box.querySelector('#btn-backup').onclick = async () => {
       try {
@@ -142,15 +158,20 @@ async function loadAccountUI(box) {
       loadAccountUI(box);
     };
 
-    // Si es owner, mostrar sección de cajeros (próximamente más completa)
     if (currentMembership.role === 'owner') {
-      const inviteHtml = document.createElement('div');
-      inviteHtml.className = 'section';
-      inviteHtml.innerHTML = `
-        <h3 style="margin-top:24px">Cajeros</h3>
-        <p class="muted small">Pronto podrás invitar cajeros por correo. Por ahora el respaldo en la nube ya está activo.</p>
-      `;
-      box.parentElement.appendChild(inviteHtml);
+      box.querySelector('#btn-invite').onclick = async () => {
+        const email = box.querySelector('#invite-email').value.trim();
+        if (!email) return toast('Escribe un correo', 'error');
+        try {
+          await cloud.inviteCashier(email);
+          toast('Invitación enviada (el cajero debe crear cuenta con ese correo)', 'ok');
+          box.querySelector('#invite-email').value = '';
+          loadMembersAndInvites(box);
+        } catch (err) {
+          toast(err.message, 'error');
+        }
+      };
+      loadMembersAndInvites(box);
     }
 
   } catch (err) {
@@ -158,11 +179,47 @@ async function loadAccountUI(box) {
   }
 }
 
-async function afterLogin() {
-  // Al iniciar sesión → crear negocio si no existe + respaldar
+async function loadMembersAndInvites(box) {
+  const membersBox = box.querySelector('#members-list');
+  const invitesBox = box.querySelector('#invites-list');
+  if (!membersBox) return;
+
   try {
-    await cloud.ensureBusiness();
-    await doCloudBackup();
+    const [members, invites] = await Promise.all([
+      cloud.getMembers(),
+      cloud.getInvites()
+    ]);
+
+    membersBox.innerHTML = `
+      <p class="muted small"><strong>Miembros actuales:</strong></p>
+      <ul style="margin:6px 0 0 18px">
+        ${members.map(m => `
+          <li>${escapeHtml(m.profiles?.full_name || 'Sin nombre')} 
+            <span class="muted">(${m.role === 'owner' ? 'Propietario' : 'Cajero'})</span>
+          </li>
+        `).join('') || '<li class="muted">Nadie todavía</li>'}
+      </ul>
+    `;
+
+    const pending = invites.filter(i => !i.accepted_at);
+    invitesBox.innerHTML = pending.length ? `
+      <p class="muted small" style="margin-top:12px"><strong>Invitaciones pendientes:</strong></p>
+      <ul style="margin:6px 0 0 18px">
+        ${pending.map(i => `<li>${escapeHtml(i.email)}</li>`).join('')}
+      </ul>
+    ` : '';
+  } catch (err) {
+    membersBox.innerHTML = `<p class="muted">No se pudieron cargar los miembros</p>`;
+  }
+}
+
+async function afterLogin() {
+  try {
+    await cloud.acceptPendingInviteIfAny();
+    const membership = await cloud.getMyMembership();
+    if (membership) {
+      await doCloudBackup();
+    }
   } catch (err) {
     console.warn('No se pudo completar el respaldo automático:', err);
   }
