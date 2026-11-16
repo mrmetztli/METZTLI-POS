@@ -58,7 +58,7 @@ $$;
 
 DROP TRIGGER IF EXISTS metztli_guard_member_permissions ON public.business_members;
 CREATE TRIGGER metztli_guard_member_permissions
-BEFORE UPDATE OF permissions, role ON public.business_members
+BEFORE UPDATE ON public.business_members
 FOR EACH ROW EXECUTE FUNCTION public.metztli_guard_member_permissions();
 
 -- Permite al propietario actualizar permisos de miembros de su propio negocio.
