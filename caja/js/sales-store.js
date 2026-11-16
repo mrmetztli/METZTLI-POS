@@ -4,7 +4,7 @@
 import * as db from './database.js';
 import { uid } from './utilities.js';
 import { round2 } from './catalog-store.js';
-import { requirePermission } from './permissions.js';
+import { requirePermission, requireOwner } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 const cents = (n) => Math.round(Number(n) * 100);
@@ -65,6 +65,7 @@ export function formatFolio(format, n, date = new Date(), timeZone = 'America/Me
 }
 
 export async function listSales() {
+  await requireOwner();
   const all = await db.getAll('sales');
   return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
