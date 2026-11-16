@@ -203,6 +203,7 @@ export async function uploadBackup(backupObject) {
   const user = await getUser();
   const membership = await getMyMembership();
   if (!user || !membership) throw new Error('No hay sesión o negocio');
+  if (membership.role !== 'owner') throw new Error('Solo el propietario puede crear respaldos.');
 
   const { error } = await supabase
     .from('backups')
@@ -218,7 +219,7 @@ export async function uploadBackup(backupObject) {
 
 export async function getLatestBackup() {
   const membership = await getMyMembership();
-  if (!membership) return null;
+  if (!membership || membership.role !== 'owner') throw new Error('Solo el propietario puede consultar respaldos.');
 
   const { data, error } = await supabase
     .from('backups')
