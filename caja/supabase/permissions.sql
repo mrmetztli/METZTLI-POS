@@ -18,6 +18,14 @@ DECLARE
   ];
   permission_key text;
 BEGIN
+  IF NEW.business_id IS DISTINCT FROM OLD.business_id OR NEW.user_id IS DISTINCT FROM OLD.user_id THEN
+    RAISE EXCEPTION 'No se puede mover un miembro a otra cuenta.';
+  END IF;
+
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    RAISE EXCEPTION 'No se puede cambiar el rol de un miembro desde esta operación.';
+  END IF;
+
   SELECT b.owner_id INTO owner_id
   FROM public.businesses b
   WHERE b.id = OLD.business_id;
@@ -31,10 +39,6 @@ BEGIN
 
   IF auth.uid() IS NULL OR auth.uid() <> owner_id THEN
     RAISE EXCEPTION 'Solo el propietario puede modificar permisos de cajeros.';
-  END IF;
-
-  IF NEW.role IS DISTINCT FROM OLD.role THEN
-    RAISE EXCEPTION 'No se puede cambiar el rol de un miembro desde esta operación.';
   END IF;
 
   IF jsonb_typeof(NEW.permissions) <> 'object' THEN
@@ -56,3 +60,25 @@ DROP TRIGGER IF EXISTS metztli_guard_member_permissions ON public.business_membe
 CREATE TRIGGER metztli_guard_member_permissions
 BEFORE UPDATE OF permissions, role ON public.business_members
 FOR EACH ROW EXECUTE FUNCTION public.metztli_guard_member_permissions();
+
+-- Permite al propietario actualizar permisos de miembros de su propio negocio.
+-- La función trigger anterior limita los campos que pueden cambiarse.
+DROP POLICY IF EXISTS metztli_owner_update_member_permissions ON public.business_members;
+CREATE POLICY metztli_owner_update_member_permissions
+ON public.business_members
+FOR UPDATE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.businesses b
+    WHERE b.id = business_members.business_id
+      AND b.owner_id = auth.uid()
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.businesses b
+    WHERE b.id = business_members.business_id
+      AND b.owner_id = auth.uid()
+  )
+);
