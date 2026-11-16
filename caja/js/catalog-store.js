@@ -84,7 +84,12 @@ export async function deleteCategory(id) {
 
 /* ============ Productos y servicios ============ */
 
-export const listProducts = () => db.getAll('products');
+export async function listProducts() {
+  const products = await db.getAll('products');
+  const access = await getPermissionContext();
+  if (access.role === 'owner') return products;
+  return products.map(({ cost, ...product }) => product);
+}
 
 export const isLowStock = (p) => !!p.trackStock && p.type === 'product' && p.stock <= p.minStock;
 
@@ -115,7 +120,7 @@ export async function saveProduct(input) {
     if (!Number.isFinite(minStock) || minStock < 0) throw new Error('Las existencias mínimas deben ser un número de 0 o más.');
   }
 
-  const all = await listProducts();
+  const all = await db.getAll('products');
   const sku = String(input.sku || '').trim();
   if (sku && all.some((p) => p.id !== input.id && String(p.sku).toLowerCase() === sku.toLowerCase())) {
     throw new Error('Ya existe otro producto con ese SKU o código interno.');
