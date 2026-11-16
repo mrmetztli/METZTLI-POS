@@ -6,6 +6,7 @@ import { uid } from './utilities.js';
 import { round2 } from './catalog-store.js';
 import { formatFolio } from './sales-store.js';
 import { dateKey } from './dashboard-store.js';
+import { requireOwner } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 export const MAX_AMOUNT = 100000000;
@@ -44,6 +45,7 @@ export function ensureDefaultCategories() {
 }
 
 export async function listExpenseCategories() {
+  await requireOwner();
   await ensureDefaultCategories();
   return (await db.getAll('expenseCategories')).sort((a, b) => a.order - b.order);
 }
@@ -53,6 +55,7 @@ async function audit(action, entity, entityId, summary) {
 }
 
 export async function saveExpenseCategory(input) {
+  await requireOwner();
   const name = String(input.name || '').trim();
   if (!name) throw new Error('Escribe el nombre de la categoría.');
   if (name.length > 40) throw new Error('El nombre es demasiado largo (máximo 40 caracteres).');
@@ -76,6 +79,7 @@ export async function saveExpenseCategory(input) {
 }
 
 export async function moveExpenseCategory(id, direction) {
+  await requireOwner();
   const all = await listExpenseCategories();
   const i = all.findIndex((c) => c.id === id);
   const j = i + direction;
@@ -86,6 +90,7 @@ export async function moveExpenseCategory(id, direction) {
 }
 
 export async function setExpenseCategoryHidden(id, hidden) {
+  await requireOwner();
   const cat = await db.get('expenseCategories', id);
   if (!cat) throw new Error('La categoría ya no existe.');
   await db.put('expenseCategories', { ...cat, hidden: !!hidden, updatedAt: nowIso() });
@@ -93,6 +98,7 @@ export async function setExpenseCategoryHidden(id, hidden) {
 }
 
 export async function deleteExpenseCategory(id) {
+  await requireOwner();
   const n = (await db.getAll('expenses')).filter((e) => e.categoryId === id).length;
   if (n) throw new Error(`Esta categoría tiene ${n} gasto(s) registrado(s). Ocúltala en lugar de eliminarla para conservar tu historial.`);
   const cat = await db.get('expenseCategories', id);
@@ -104,6 +110,7 @@ export async function deleteExpenseCategory(id) {
 
 const byDateDesc = (a, b) => (a.date === b.date ? (a.createdAt < b.createdAt ? 1 : -1) : (a.date < b.date ? 1 : -1));
 export async function listExpenses() {
+  await requireOwner();
   return (await db.getAll('expenses')).sort(byDateDesc);
 }
 
@@ -148,6 +155,7 @@ async function clean(input, config, existing) {
 
 // input: { id?, date, concept, amount, categoryId, method, supplier, notes }
 export async function createExpense(input, config) {
+  await requireOwner();
   if (input.id) { // evita duplicar el gasto si se pulsa dos veces
     const again = await db.get('expenses', input.id);
     if (again) return again;
@@ -170,6 +178,7 @@ export async function createExpense(input, config) {
 }
 
 export async function updateExpense(id, input, config) {
+  await requireOwner();
   const existing = await db.get('expenses', id);
   if (!existing) throw new Error('El gasto ya no existe.');
   if (existing.status === 'cancelled') throw new Error('Un gasto cancelado ya no se puede editar.');
@@ -185,6 +194,7 @@ export async function updateExpense(id, input, config) {
 
 // rules: { enabled, maxDays } (de Configuración → Gastos). Un gasto cancelado deja de sumar, pero se conserva con su motivo.
 export async function cancelExpense(id, reason, rules = {}) {
+  await requireOwner();
   const text = String(reason || '').trim();
   if (text.length < 3) throw new Error('Escribe el motivo de la cancelación (mínimo 3 caracteres).');
   const e = await db.get('expenses', id);
