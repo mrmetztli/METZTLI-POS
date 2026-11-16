@@ -3,6 +3,7 @@
 // catalog.js y categories.js solo dibujan y llaman a estas funciones.
 import * as db from './database.js';
 import { uid } from './utilities.js';
+import { getPermissionContext, requirePermission } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
@@ -24,6 +25,7 @@ export async function listCategories() {
 }
 
 export async function saveCategory(input) {
+  await requirePermission('products_edit');
   const name = String(input.name || '').trim();
   if (!name) throw new Error('Escribe el nombre de la categoría.');
   const all = await listCategories();
@@ -50,6 +52,7 @@ export async function saveCategory(input) {
 }
 
 export async function moveCategory(id, direction) {
+  await requirePermission('products_edit');
   const all = await listCategories();
   const i = all.findIndex((c) => c.id === id);
   const j = i + direction;
@@ -60,6 +63,7 @@ export async function moveCategory(id, direction) {
 }
 
 export async function setCategoryHidden(id, hidden) {
+  await requirePermission('products_edit');
   const cat = await db.get('categories', id);
   if (!cat) throw new Error('La categoría ya no existe.');
   await db.put('categories', { ...cat, hidden: !!hidden, updatedAt: nowIso() });
@@ -67,6 +71,7 @@ export async function setCategoryHidden(id, hidden) {
 }
 
 export async function deleteCategory(id) {
+  await requirePermission('products_edit');
   const products = await db.getAll('products');
   const n = products.filter((p) => p.categoryId === id).length;
   if (n) {
@@ -119,6 +124,23 @@ export async function saveProduct(input) {
   const existing = input.id ? all.find((p) => p.id === input.id) : null;
   if (input.id && !existing) throw new Error('El producto ya no existe.');
 
+  const access = await getPermissionContext();
+  if (!existing) {
+    await requirePermission('products_create');
+  } else if (access.role === 'cashier') {
+    const metadataChanged = ['name', 'description', 'sku', 'barcode', 'categoryId', 'type', 'unit', 'image', 'quick', 'featured', 'active']
+      .some((key) => String(input[key] ?? (key === 'image' ? '' : '')) !== String(existing[key] ?? (key === 'image' ? '' : '')));
+    if (metadataChanged) await requirePermission('products_edit');
+    if (round2(input.price) !== round2(existing.price)) await requirePermission('prices_edit');
+    if (Number(input.stock ?? 0) !== Number(existing.stock ?? 0) || Number(input.minStock ?? 0) !== Number(existing.minStock ?? 0) || !!input.trackStock !== !!existing.trackStock) {
+      await requirePermission('stock_adjust');
+    }
+    if (input.cost !== '' && input.cost != null && round2(input.cost) !== round2(existing.cost ?? 0)) {
+      throw new Error('Solo el propietario puede consultar o modificar el costo de compra.');
+    }
+    cost = existing.cost ?? null;
+  }
+
   const image = typeof input.image === 'string' && input.image.startsWith('data:image/') ? input.image : null;
   const rec = {
     id: existing?.id || uid(),
@@ -149,6 +171,7 @@ export async function saveProduct(input) {
 }
 
 export async function duplicateProduct(id) {
+  await requirePermission('products_create');
   const src = await db.get('products', id);
   if (!src) throw new Error('El producto ya no existe.');
   const copy = {
@@ -167,6 +190,7 @@ export async function duplicateProduct(id) {
 }
 
 export async function setProductActive(id, active) {
+  await requirePermission('products_edit');
   const p = await db.get('products', id);
   if (!p) throw new Error('El producto ya no existe.');
   await db.put('products', { ...p, active: !!active, updatedAt: nowIso() });
@@ -175,6 +199,7 @@ export async function setProductActive(id, active) {
 
 // Eliminar solo es seguro si ninguna venta lo usa; si no, se debe archivar.
 export async function deleteProduct(id) {
+  await requirePermission('products_edit');
   const sales = await db.getAll('sales');
   const used = sales.some((s) => (s.items || []).some((i) => i.productId === id));
   if (used) {
@@ -223,6 +248,7 @@ export function orderQuick(products, order = []) {
 
 // Agrega o quita un producto de los botones de venta rápida (el orden se guarda en la configuración del catálogo).
 export async function setQuick(id, quick) {
+  await requirePermission('products_edit');
   const p = await db.get('products', id);
   if (!p) throw new Error('El producto ya no existe.');
   await db.put('products', { ...p, quick: !!quick, updatedAt: nowIso() });
