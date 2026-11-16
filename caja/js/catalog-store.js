@@ -127,6 +127,8 @@ export async function saveProduct(input) {
   const access = await getPermissionContext();
   if (!existing) {
     await requirePermission('products_create');
+    if (access.role === 'cashier') cost = null;
+    else if (access.role !== 'owner') throw new Error('No se pudo verificar tu rol. Esta acción está bloqueada.');
   } else if (access.role !== 'owner') {
     if (access.role !== 'cashier') throw new Error('No se pudo verificar tu rol. Esta acción está bloqueada.');
     if (!['products_edit', 'prices_edit', 'stock_adjust'].some((key) => access.permissions[key])) throw new Error('No tienes permisos para editar este producto.');
