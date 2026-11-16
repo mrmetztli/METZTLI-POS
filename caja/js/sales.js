@@ -9,6 +9,7 @@ import { escapeHtml, money, uid } from './utilities.js';
 import { askPayment } from './checkout.js';
 import { printTicket } from './tickets.js';
 import { openBarcodeScanner } from './barcode-scan.js';
+import { getPermissionContext } from './permissions.js';
 
 const round3 = (n) => Math.round(n * 1000) / 1000;
 const newCart = () => ({ id: uid(), lines: [], discount: { type: 'percent', value: '' }, customer: '', notes: '' });
@@ -20,9 +21,10 @@ let root = null;
 let products = [];
 let cats = [];
 let busy = false;
+let access = { role: 'owner', permissions: {} };
 
 async function load() {
-  [products, cats] = await Promise.all([catalog.listProducts(), catalog.listCategories()]);
+  [products, cats, access] = await Promise.all([catalog.listProducts(), catalog.listCategories(), getPermissionContext()]);
   products = products.filter((p) => p.active);
 }
 
@@ -423,7 +425,7 @@ function drawCart() {
     const priceLabel = `${money(l.unitPrice)}${p.unit && !['pieza', 'servicio'].includes(p.unit) ? ` / ${escapeHtml(p.unit)}` : ''}`;
     return `<div class="cline" data-id="${l.productId}">
       <div class="cline-main"><strong>${escapeHtml(p.name)}</strong>
-        ${cfg.sales.priceEdit === 'allow'
+        ${cfg.sales.priceEdit === 'allow' && (access.role === 'owner' || access.permissions.prices_edit)
           ? `<button type="button" class="linkbtn" data-act="price">${priceLabel}</button>`
           : `<span class="muted">${priceLabel}</span>`}
         ${modified ? '<span class="badge">Precio modificado</span>' : ''}</div>
@@ -442,7 +444,7 @@ function drawCart() {
     ${empty ? '<p class="muted cart-empty">Toca un producto para agregarlo.</p>' : lines}
     <div class="cart-totals">
       <div class="ln"><span>Subtotal</span><span>${money(t.subtotal)}</span></div>
-      ${cfg.sales.discountsEnabled ? `<div class="ln"><span>Descuento</span><span class="row" style="gap:6px">
+      ${(cfg.sales.discountsEnabled && (access.role === 'owner' || access.permissions.discounts)) ? `<div class="ln"><span>Descuento</span><span class="row" style="gap:6px">
         <select data-f="dtype" class="input mini" aria-label="Tipo de descuento">
           <option value="percent" ${cart.discount.type === 'percent' ? 'selected' : ''}>%</option>
           <option value="amount" ${cart.discount.type === 'amount' ? 'selected' : ''}>$</option></select>
