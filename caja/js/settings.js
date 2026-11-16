@@ -9,11 +9,12 @@ import * as appearance from './settings-appearance.js';
 import * as salesCfg from './settings-sales.js';
 import * as expensesCfg from './settings-expenses.js';
 import * as data from './settings-data.js';
+import { renderAccountSection } from './auth-ui.js';
 import { escapeHtml } from './utilities.js';
 
 const SECTIONS = [
   ['business', 'Negocio'], ['catalog', 'Catálogo'], ['sales', 'Ventas'], ['expenses', 'Gastos'], ['appearance', 'Personalización'],
-  ['data', 'Datos'], ['app', 'App'], ['clients', 'Clientes'], ['about', 'Sobre nosotros']
+  ['data', 'Datos'], ['app', 'App'], ['clients', 'Clientes'], ['account', 'Cuenta'], ['about', 'Sobre nosotros']
 ];
 const ui = { section: 'business', expensesTab: 'list' }; // se recuerdan mientras la app esté abierta
 let mounted = null; // módulo montado ahora (para llamar a su destroy al salir)
@@ -57,6 +58,7 @@ const BUILDERS = {
   data: async (host) => data.render(host, { part: 'backup' }),
   app: async (host) => data.render(host, { part: 'app' }),
   clients: async (host) => { mounted = await mountModule('./clients.js', host); },
+  account: async (host) => renderAccountSection(host),
   about: async (host) => {
     host.innerHTML = `<section class="section"><h2>Sobre nosotros</h2>
       <div class="card stack"><p>mrmetztli@gmail.com</p></div></section>`;
