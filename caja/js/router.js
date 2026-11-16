@@ -35,16 +35,32 @@ function currentGroup() {
   return GROUPS.find((g) => g.id === id) || GROUPS[0];
 }
 
-export function renderNav() {
+export async function renderNav() {
   const active = currentGroup();
   const name = getConfig().business.name || 'Mi negocio';
-  const links = GROUPS.map((g) => `
+
+  // Cargar rol (si no hay sesión = dueño local, ve todo)
+  let role = null;
+  try {
+    const { getCurrentRole } = await import('./auth-ui.js');
+    role = await getCurrentRole();
+  } catch {}
+
+  // Cajeros solo ven Inicio y Ventas
+  const allowed = role === 'cashier'
+    ? GROUPS.filter(g => g.id === 'ventas' || g.id === 'inicio')
+    : GROUPS;
+
+  const links = allowed.map((g) => `
     <a class="nav-link ${g.id === active.id ? 'is-group-active' : ''}" href="#/${g.id}" ${g.id === active.id ? 'aria-current="page"' : ''}>
       ${icon(g.icon)}<span>${g.label}</span>
     </a>`).join('');
+
   const logo = getConfig().business.logo;
-  const mark = logo ? `<img class="brand-logo" src="${escapeHtml(logo)}" alt="">`
+  const mark = logo
+    ? `<img class="brand-logo" src="${escapeHtml(logo)}" alt="">`
     : `<span class="brand-mark">${escapeHtml(name.trim().charAt(0).toUpperCase() || 'C')}</span>`;
+
   document.getElementById('nav').innerHTML = `
     <div class="brand">${mark}<span class="brand-name">${escapeHtml(name)}</span></div>
     <div class="nav-primary">${links}</div>`;
@@ -53,14 +69,31 @@ export function renderNav() {
 async function show() {
   const route = wantedRoute();
   const alias = ALIASES[route.split('?')[0]];
-  if (alias) { location.replace('#/' + alias); return; } // vuelve a llamar a show() por el cambio de hash
+  if (alias) {
+    location.replace('#/' + alias);
+    return; // vuelve a llamar a show() por el cambio de hash
+  }
+
   const group = currentGroup();
   const view = document.getElementById('view');
   const mine = ++token;
-  renderNav();
+
+  // Protección de roles: cajero no puede entrar a secciones prohibidas
+  try {
+    const { getCurrentRole } = await import('./auth-ui.js');
+    const role = await getCurrentRole();
+    if (role === 'cashier' && !['ventas', 'inicio'].includes(group.id)) {
+      location.replace('#/ventas');
+      return;
+    }
+  } catch {}
+
+  await renderNav();
+
   if (current?.destroy) current.destroy();
   current = null;
   view.innerHTML = '';
+
   try {
     const mod = await LOADERS[group.modules[0]]();
     if (mine !== token) return; // el usuario ya navegó a otra sección
@@ -69,13 +102,4 @@ async function show() {
     window.scrollTo(0, 0);
   } catch (err) {
     console.error(err);
-    view.innerHTML = `<div class="card"><h2>No se pudo abrir esta sección</h2>
-      <p class="muted">${escapeHtml(err.message)}</p></div>`;
-  }
-}
-
-export function startRouter() {
-  window.addEventListener('hashchange', show);
-  subscribe(renderNav); // el menú se actualiza si cambia el nombre o el logotipo
-  show();
-}
+    view.innerHTML = 
