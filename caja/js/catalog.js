@@ -144,11 +144,13 @@ function drawList() {
   const lowCount = prods.filter((p) => p.active && store.isLowStock(p)).length;
 
   if (!prods.length) {
+    const canCreate = access.role === 'owner' || access.permissions.products_create;
+    const canManage = access.role === 'owner' || access.permissions.products_edit;
     root.innerHTML = pageHeader('Catálogo', 'Productos, servicios y categorías') + emptyState({
       icon: 'tag', title: 'Tu catálogo está vacío',
-      text: 'Crea tu primer producto o servicio para poder venderlo. Te recomendamos crear antes algunas categorías.',
-      actionId: access.role === 'owner' || access.permissions.products_create ? 'new-first' : '', actionLabel: access.role === 'owner' || access.permissions.products_create ? 'Crear primer producto' : ''
-    }) + `<p style="text-align:center;margin-top:12px"><button class="btn" id="to-cats" type="button">Administrar categorías</button></p>`;
+      text: canCreate ? 'Crea tu primer producto o servicio para poder venderlo. Te recomendamos crear antes algunas categorías.' : 'Todavía no hay productos disponibles. Solicita al propietario que agregue productos al catálogo.',
+      actionId: canCreate ? 'new-first' : '', actionLabel: canCreate ? 'Crear primer producto' : ''
+    }) + (canManage ? `<p style="text-align:center;margin-top:12px"><button class="btn" id="to-cats" type="button">Administrar categorías</button></p>` : '');
     root.querySelector('#new-first')?.addEventListener('click', () => go('form'));
     root.querySelector('#to-cats')?.addEventListener('click', () => go('categories'));
     return;
