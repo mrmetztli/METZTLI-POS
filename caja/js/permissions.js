@@ -67,3 +67,9 @@ export async function requirePermission(permission) {
     ? `Tu cuenta no tiene permiso para: ${definition.label.toLowerCase()}.`
     : 'Tu cuenta no tiene autorización para realizar esta acción.');
 }
+
+export async function requireOwner() {
+  const context = await getPermissionContext();
+  if (context.role !== 'owner') throw new Error('Esta función es exclusiva del propietario.');
+  return true;
+}
