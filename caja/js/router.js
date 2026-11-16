@@ -102,4 +102,13 @@ async function show() {
     window.scrollTo(0, 0);
   } catch (err) {
     console.error(err);
-    view.innerHTML = 
+    view.innerHTML = `<div class="card"><h2>No se pudo abrir esta sección</h2>
+      <p class="muted">${escapeHtml(err.message)}</p></div>`;
+  }
+}
+
+export function startRouter() {
+  window.addEventListener('hashchange', show);
+  subscribe(() => { renderNav(); }); // el menú se actualiza si cambia el nombre o el logotipo
+  show();
+}
