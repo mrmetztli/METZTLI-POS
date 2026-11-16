@@ -283,6 +283,17 @@ function drawForm() {
     </form>`;
 
   const $ = (id) => root.querySelector(`#${id}`);
+  const owner = access.role === 'owner';
+  const canMetadata = owner || !p || access.permissions.products_edit === true;
+  const canPrice = owner || !p || access.permissions.prices_edit === true;
+  const canStock = owner || !p || access.permissions.stock_adjust === true;
+  const canCreate = owner || access.permissions.products_create === true;
+  ['f-name','f-type','f-cat','f-unit','f-sku','f-barcode','f-desc','f-color','f-image','f-quick','f-featured','f-barcode-scan','img-remove'].forEach((id) => { if ($(id)) $(id).disabled = !canMetadata; });
+  ['f-price'].forEach((id) => { if ($(id)) $(id).disabled = !canPrice; });
+  ['f-track','f-stock','f-min'].forEach((id) => { if ($(id)) $(id).disabled = !canStock; });
+  if ($('p-save')) $('p-save').disabled = !!p && !canMetadata && !canPrice && !canStock;
+  if ($('p-dup') && !canCreate) $('p-dup').hidden = true;
+  if (!owner) ['p-arch','p-del'].forEach((id) => { if ($(id)) $(id).hidden = true; });
   bindChoices(root, 'f-color');
   $('f-type').addEventListener('change', (e) => { $('stock-section').hidden = e.target.value === 'service'; });
   $('f-track').addEventListener('change', (e) => { $('stock-fields').hidden = !e.target.checked; });
