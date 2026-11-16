@@ -3,18 +3,18 @@ import * as cloud from './supabase.js';
 import * as db from './database.js';
 import { toast } from './components.js';
 import { escapeHtml } from './utilities.js';
+import { getPermissionContext, invalidatePermissionContext } from './permissions.js';
+import { renderTeamPermissions } from './team-permissions.js';
 
 let currentMembership = null;
 
 export async function getCurrentRole() {
-  if (!currentMembership) {
-    try {
-      currentMembership = await cloud.getMyMembership();
-    } catch {
-      currentMembership = null;
-    }
-  }
-  return currentMembership?.role || null;
+  const context = await getPermissionContext();
+  return context.role === 'owner' && context.local ? null : context.role;
+}
+
+export async function getCurrentPermissions() {
+  return (await getPermissionContext()).permissions;
 }
 
 export async function isOwner() {
@@ -119,9 +119,10 @@ async function loadAccountUI(box) {
         <dt>Rol</dt><dd><strong>${roleLabel}</strong></dd>
       </dl>
       <div class="row" style="margin-top:12px">
-        <button class="btn btn-primary" id="btn-backup" type="button">Respaldar ahora en la nube</button>
+        ${currentMembership.role === 'owner' ? '<button class="btn btn-primary" id="btn-backup" type="button">Respaldar ahora en la nube</button>' : ''}
         <button class="btn" id="btn-logout" type="button">Cerrar sesión</button>
       </div>
+      ${currentMembership.role === 'cashier' ? '<p class="muted small">Los respaldos y la administración de la cuenta son exclusivos del propietario.</p>' : ''}
       <p class="muted small" id="backup-status" style="margin-top:8px"></p>
     `;
 
@@ -143,7 +144,7 @@ async function loadAccountUI(box) {
 
     box.innerHTML = html;
 
-    box.querySelector('#btn-backup').onclick = async () => {
+    box.querySelector('#btn-backup')?.addEventListener('click', async () => {
       try {
         await doCloudBackup();
         toast('Respaldo subido a la nube', 'ok');
@@ -151,11 +152,12 @@ async function loadAccountUI(box) {
       } catch (err) {
         toast('Error al respaldar: ' + err.message, 'error');
       }
-    };
+    });
 
     box.querySelector('#btn-logout').onclick = async () => {
       await cloud.signOut();
       currentMembership = null;
+      invalidatePermissionContext();
       toast('Sesión cerrada', 'ok');
       loadAccountUI(box);
     };
@@ -185,33 +187,17 @@ async function loadMembersAndInvites(box) {
   const membersBox = box.querySelector('#members-list');
   const invitesBox = box.querySelector('#invites-list');
   if (!membersBox) return;
-
   try {
-    const [members, invites] = await Promise.all([
-      cloud.getMembers(),
-      cloud.getInvites()
-    ]);
-
-    membersBox.innerHTML = `
-      <p class="muted small"><strong>Miembros actuales:</strong></p>
-      <ul style="margin:6px 0 0 18px">
-        ${members.map(m => `
-          <li>${escapeHtml(m.profiles?.full_name || 'Sin nombre')} 
-            <span class="muted">(${m.role === 'owner' ? 'Propietario' : 'Cajero'})</span>
-          </li>
-        `).join('') || '<li class="muted">Nadie todavía</li>'}
-      </ul>
-    `;
-
+    const [members, invites] = await Promise.all([cloud.getMembers(), cloud.getInvites()]);
+    await renderTeamPermissions(membersBox, members);
     const pending = invites.filter(i => !i.accepted_at);
     invitesBox.innerHTML = pending.length ? `
       <p class="muted small" style="margin-top:12px"><strong>Invitaciones pendientes:</strong></p>
       <ul style="margin:6px 0 0 18px">
         ${pending.map(i => `<li>${escapeHtml(i.email)}</li>`).join('')}
-      </ul>
-    ` : '';
+      </ul>` : '';
   } catch (err) {
-    membersBox.innerHTML = `<p class="muted">No se pudieron cargar los miembros</p>`;
+    membersBox.innerHTML = `<p class="muted">No se pudieron cargar los miembros: ${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -221,7 +207,7 @@ async function afterLogin() {
   await cloud.acceptPendingInviteIfAny();
 }
     const membership = await cloud.getMyMembership();
-    if (membership) {
+    if (membership?.role === 'owner') {
       await doCloudBackup();
     }
   } catch (err) {
