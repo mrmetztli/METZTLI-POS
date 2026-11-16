@@ -219,7 +219,8 @@ export async function uploadBackup(backupObject) {
 
 export async function getLatestBackup() {
   const membership = await getMyMembership();
-  if (!membership || membership.role !== 'owner') throw new Error('Solo el propietario puede consultar respaldos.');
+  if (!membership) return null;
+  if (membership.role !== 'owner') throw new Error('Solo el propietario puede consultar respaldos.');
 
   const { data, error } = await supabase
     .from('backups')
