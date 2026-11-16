@@ -73,3 +73,11 @@ export async function requireOwner() {
   if (context.role !== 'owner') throw new Error('Esta función es exclusiva del propietario.');
   return true;
 }
+
+export async function getAuditActor() {
+  const context = await getPermissionContext();
+  return {
+    actorRole: context.role,
+    actorId: context.membership?.user_id || (context.local ? 'local-owner' : null)
+  };
+}
