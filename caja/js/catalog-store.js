@@ -3,7 +3,7 @@
 // catalog.js y categories.js solo dibujan y llaman a estas funciones.
 import * as db from './database.js';
 import { uid } from './utilities.js';
-import { getPermissionContext, requirePermission } from './permissions.js';
+import { getPermissionContext, getAuditActor, requirePermission } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
@@ -11,7 +11,7 @@ export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 10
 // Historial de operaciones (tabla "audit"). Si falla, no bloquea el guardado.
 async function audit(action, entity, entityId, summary) {
   try {
-    await db.put('audit', { id: uid(), at: nowIso(), action, entity, entityId, summary });
+    await db.put('audit', { id: uid(), at: nowIso(), action, entity, entityId, summary, ...await getAuditActor() });
   } catch (e) {
     console.warn('No se pudo registrar en el historial', e);
   }
@@ -127,8 +127,10 @@ export async function saveProduct(input) {
   const access = await getPermissionContext();
   if (!existing) {
     await requirePermission('products_create');
-  } else if (access.role === 'cashier') {
-    const metadataChanged = ['name', 'description', 'sku', 'barcode', 'categoryId', 'type', 'unit', 'image', 'quick', 'featured']
+  } else if (access.role !== 'owner') {
+    if (access.role !== 'cashier') throw new Error('No se pudo verificar tu rol. Esta acción está bloqueada.');
+    if (!['products_edit', 'prices_edit', 'stock_adjust'].some((key) => access.permissions[key])) throw new Error('No tienes permisos para editar este producto.');
+    const metadataChanged = ['name', 'description', 'sku', 'barcode', 'categoryId', 'type', 'unit', 'image', 'quick', 'featured', 'color']
       .some((key) => String(input[key] ?? (key === 'image' ? '' : '')) !== String(existing[key] ?? (key === 'image' ? '' : '')));
     if (metadataChanged) await requirePermission('products_edit');
     if (round2(input.price) !== round2(existing.price)) await requirePermission('prices_edit');
@@ -172,10 +174,12 @@ export async function saveProduct(input) {
 
 export async function duplicateProduct(id) {
   await requirePermission('products_create');
+  const access = await getPermissionContext();
   const src = await db.get('products', id);
   if (!src) throw new Error('El producto ya no existe.');
   const copy = {
     ...src,
+    cost: access.role === 'owner' ? src.cost : null,
     id: uid(),
     name: `${src.name} (copia)`.slice(0, 80),
     sku: '',
