@@ -4,7 +4,7 @@
 import * as db from './database.js';
 import { uid } from './utilities.js';
 import { round2 } from './catalog-store.js';
-import { requirePermission, requireOwner } from './permissions.js';
+import { getAuditActor, requirePermission, requireOwner } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 const cents = (n) => Math.round(Number(n) * 100);
@@ -170,7 +170,7 @@ export async function createSale(input, config) {
     const p = products.find((x) => x.id === productId);
     if (p.trackStock) ops.push({ store: 'products', op: 'put', record: { ...p, stock: round3(p.stock - qty) } });
   }
-  ops.push({ store: 'audit', op: 'put', record: { id: uid(), at: createdAt, action: 'crear', entity: 'venta', entityId: id, summary: `${sale.folio} · ${sale.total}` } });
+  ops.push({ store: 'audit', op: 'put', record: { id: uid(), at: createdAt, action: 'crear', entity: 'venta', entityId: id, summary: `${sale.folio} · ${sale.total}`, ...await getAuditActor() } });
   await db.batch(ops);
   return sale;
 }
@@ -198,6 +198,6 @@ export async function cancelSale(id, reason, rules = {}) {
     const p = products.find((x) => x.id === productId);
     if (p?.trackStock) ops.push({ store: 'products', op: 'put', record: { ...p, stock: round3(p.stock + qty) } });
   }
-  ops.push({ store: 'audit', op: 'put', record: { id: uid(), at, action: 'cancelar', entity: 'venta', entityId: id, summary: `${sale.folio} · ${text}` } });
+  ops.push({ store: 'audit', op: 'put', record: { id: uid(), at, action: 'cancelar', entity: 'venta', entityId: id, summary: `${sale.folio} · ${text}`, ...await getAuditActor() } });
   await db.batch(ops);
 }
