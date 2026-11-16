@@ -9,15 +9,18 @@ import { escapeHtml, money, formatDateTime, resizeImage } from './utilities.js';
 import { renderCategories } from './categories.js';
 import { renderCatalogEditor } from './catalog-editor.js';
 import { openBarcodeScanner } from './barcode-scan.js';
+import { getPermissionContext } from './permissions.js';
 
 // Filtros que se conservan mientras la app está abierta
 const ui = { view: 'list', editingId: null, search: '', category: 'all', status: 'active', page: 1 };
 let root = null;
 let cats = [];
 let prods = [];
+let access = { role: 'owner', permissions: {} };
+const canEditProducts = () => access.role === 'owner' || ['products_edit', 'prices_edit', 'stock_adjust'].some((key) => access.permissions[key]);
 
 async function load() {
-  [cats, prods] = await Promise.all([store.listCategories(), store.listProducts()]);
+  [cats, prods, access] = await Promise.all([store.listCategories(), store.listProducts(), getPermissionContext()]);
 }
 
 // Lo usa el Dashboard para abrir el catálogo ya filtrado por existencias bajas.
@@ -109,7 +112,7 @@ const LIST_COLUMNS = {
 };
 
 function productTable(list, cc) {
-  const cols = Object.keys(LIST_COLUMNS).filter((k) => cc.listColumns[k]);
+  const cols = Object.keys(LIST_COLUMNS).filter((k) => cc.listColumns[k] && !(access.role !== 'owner' && k === 'cost'));
   return `<div class="card table-wrap"><table class="table"><thead><tr><th scope="col">Producto</th>
     ${cols.map((k) => `<th scope="col" class="${LIST_COLUMNS[k].num ? 'num' : ''}">${LIST_COLUMNS[k].label}</th>`).join('')}</tr></thead><tbody>
     ${list.map((p) => `<tr class="${p.active ? '' : 'is-off'}"><td><button type="button" class="prow-btn" data-id="${p.id}">
@@ -141,13 +144,15 @@ function drawList() {
   const lowCount = prods.filter((p) => p.active && store.isLowStock(p)).length;
 
   if (!prods.length) {
+    const canCreate = access.role === 'owner' || access.permissions.products_create;
+    const canManage = access.role === 'owner' || access.permissions.products_edit;
     root.innerHTML = pageHeader('Catálogo', 'Productos, servicios y categorías') + emptyState({
       icon: 'tag', title: 'Tu catálogo está vacío',
-      text: 'Crea tu primer producto o servicio para poder venderlo. Te recomendamos crear antes algunas categorías.',
-      actionId: 'new-first', actionLabel: 'Crear primer producto'
-    }) + `<p style="text-align:center;margin-top:12px"><button class="btn" id="to-cats" type="button">Administrar categorías</button></p>`;
-    root.querySelector('#new-first').addEventListener('click', () => go('form'));
-    root.querySelector('#to-cats').addEventListener('click', () => go('categories'));
+      text: canCreate ? 'Crea tu primer producto o servicio para poder venderlo. Te recomendamos crear antes algunas categorías.' : 'Todavía no hay productos disponibles. Solicita al propietario que agregue productos al catálogo.',
+      actionId: canCreate ? 'new-first' : '', actionLabel: canCreate ? 'Crear primer producto' : ''
+    }) + (canManage ? `<p style="text-align:center;margin-top:12px"><button class="btn" id="to-cats" type="button">Administrar categorías</button></p>` : '');
+    root.querySelector('#new-first')?.addEventListener('click', () => go('form'));
+    root.querySelector('#to-cats')?.addEventListener('click', () => go('categories'));
     return;
   }
 
@@ -157,9 +162,9 @@ function drawList() {
 
   root.innerHTML = pageHeader('Catálogo', 'Productos, servicios y categorías') + `
     <div class="row" style="margin-bottom:16px">
-      <button class="btn btn-primary" id="new" type="button">Nuevo producto</button>
-      <button class="btn" id="to-cats" type="button">Categorías</button>
-      <button class="btn" id="to-custom" type="button">Personalizar</button>
+      ${access.role === 'owner' || access.permissions.products_create ? '<button class="btn btn-primary" id="new" type="button">Nuevo producto</button>' : ''}
+      ${access.role === 'owner' || access.permissions.products_edit ? '<button class="btn" id="to-cats" type="button">Categorías</button>' : ''}
+      ${access.role === 'owner' || access.permissions.products_edit ? '<button class="btn" id="to-custom" type="button">Personalizar</button>' : ''}
     </div>
     ${lowCount ? `<div class="notice warn" style="margin-bottom:16px">${lowCount} producto(s) con existencias bajas.
       <button class="btn btn-sm" id="show-low" type="button">Verlos</button></div>` : ''}
@@ -177,9 +182,9 @@ function drawList() {
     <div id="results"></div>`;
 
   const $ = (s) => root.querySelector(s);
-  $('#new').addEventListener('click', () => go('form'));
-  $('#to-cats').addEventListener('click', () => go('categories'));
-  $('#to-custom').addEventListener('click', () => go('customize'));
+  $('#new')?.addEventListener('click', () => go('form'));
+  $('#to-cats')?.addEventListener('click', () => go('categories'));
+  $('#to-custom')?.addEventListener('click', () => go('customize'));
   $('#show-low')?.addEventListener('click', () => { ui.status = 'low'; ui.page = 1; draw(); });
   $('#q').addEventListener('input', (e) => { ui.search = e.target.value; ui.page = 1; drawResults(); });
   $('#cat').addEventListener('change', (e) => { ui.category = e.target.value; ui.page = 1; drawResults(); });
@@ -200,7 +205,7 @@ function drawList() {
     const pg = e.target.closest('[data-page]');
     if (pg) { ui.page = Number(pg.dataset.page); drawResults(); $('#results').scrollIntoView({ block: 'start' }); return; }
     const item = e.target.closest('[data-id]');
-    if (item) go('form', item.dataset.id);
+    if (item && canEditProducts()) go('form', item.dataset.id);
   });
   drawResults();
 }
@@ -210,6 +215,8 @@ function drawList() {
 function drawForm() {
   const p = ui.editingId ? prods.find((x) => x.id === ui.editingId) : null;
   if (ui.editingId && !p) { go('list'); return; }
+  if (ui.editingId && !canEditProducts()) { go('list'); return; }
+  if (!ui.editingId && access.role !== 'owner' && !access.permissions.products_create) { go('list'); return; }
   const v = p || {
     name: '', description: '', sku: '', barcode: '', categoryId: '', type: 'product', price: '', cost: '',
     image: null, active: true, color: COLOR_CHOICES[0], unit: 'pieza', trackStock: false, stock: 0, minStock: 0, quick: false, featured: false
@@ -232,9 +239,7 @@ function drawForm() {
         <div class="field"><label for="f-unit">Unidad de medida</label><select id="f-unit" class="input">${unitOptions}</select></div>
         <div class="field"><label for="f-price">Precio de venta (MXN)</label>
           <input id="f-price" class="input" type="number" inputmode="decimal" min="0" step="0.01" value="${v.price}" required></div>
-        <div class="field"><label for="f-cost">Costo unitario (opcional)</label>
-          <input id="f-cost" class="input" type="number" inputmode="decimal" min="0" step="0.01" value="${v.cost ?? ''}">
-          <span class="hint">Se usa para calcular utilidad en los reportes.</span></div>
+        ${access.role === 'owner' ? '<div class="field"><label for="f-cost">Costo unitario (opcional)</label><input id="f-cost" class="input" type="number" inputmode="decimal" min="0" step="0.01" value="' + (v.cost ?? '') + '"><span class="hint">Se usa para calcular utilidad en los reportes.</span></div>' : ''}
         <div class="field"><label for="f-sku">SKU o código interno (opcional)</label><input id="f-sku" class="input" maxlength="40" value="${escapeHtml(v.sku)}"></div>
         <div class="field"><label for="f-barcode">Código de barras (opcional)</label>
           <div class="row barcode-row">
@@ -280,6 +285,17 @@ function drawForm() {
     </form>`;
 
   const $ = (id) => root.querySelector(`#${id}`);
+  const owner = access.role === 'owner';
+  const canMetadata = owner || !p || access.permissions.products_edit === true;
+  const canPrice = owner || !p || access.permissions.prices_edit === true;
+  const canStock = owner || !p || access.permissions.stock_adjust === true;
+  const canCreate = owner || access.permissions.products_create === true;
+  ['f-name','f-type','f-cat','f-unit','f-sku','f-barcode','f-desc','f-color','f-image','f-quick','f-featured','f-barcode-scan','img-remove'].forEach((id) => { if ($(id)) $(id).disabled = !canMetadata; });
+  ['f-price'].forEach((id) => { if ($(id)) $(id).disabled = !canPrice; });
+  ['f-track','f-stock','f-min'].forEach((id) => { if ($(id)) $(id).disabled = !canStock; });
+  if ($('p-save')) $('p-save').disabled = !!p && !canMetadata && !canPrice && !canStock;
+  if ($('p-dup') && !canCreate) $('p-dup').hidden = true;
+  if (!owner) ['p-arch','p-del'].forEach((id) => { if ($(id)) $(id).hidden = true; });
   bindChoices(root, 'f-color');
   $('f-type').addEventListener('change', (e) => { $('stock-section').hidden = e.target.value === 'service'; });
   $('f-track').addEventListener('change', (e) => { $('stock-fields').hidden = !e.target.checked; });
@@ -315,7 +331,7 @@ function drawForm() {
     try {
       await store.saveProduct({
         id: p?.id, name: $('f-name').value, type: $('f-type').value, categoryId: $('f-cat').value,
-        unit: $('f-unit').value, price: $('f-price').value, cost: $('f-cost').value,
+        unit: $('f-unit').value, price: $('f-price').value, cost: $('f-cost')?.value ?? '',
         sku: $('f-sku').value, barcode: $('f-barcode').value, description: $('f-desc').value,
         color: $('f-color').value, image, quick: $('f-quick').checked, featured: $('f-featured').checked,
         trackStock: $('f-track').checked, stock: $('f-stock').value, minStock: $('f-min').value
@@ -333,21 +349,21 @@ function drawForm() {
   });
 
   if (p) {
-    $('p-dup').addEventListener('click', async () => {
+    $('p-dup')?.addEventListener('click', async () => {
       try {
         const copy = await store.duplicateProduct(p.id);
         toast('Copia creada. Ajusta sus datos y guarda.', 'ok');
         await go('form', copy.id);
       } catch (err) { toast(err.message, 'error'); }
     });
-    $('p-arch').addEventListener('click', async () => {
+    $('p-arch')?.addEventListener('click', async () => {
       try {
         await store.setProductActive(p.id, !p.active);
         toast(p.active ? 'Producto archivado' : 'Producto reactivado', 'ok');
         await go('list');
       } catch (err) { toast(err.message, 'error'); }
     });
-    $('p-del').addEventListener('click', async () => {
+    $('p-del')?.addEventListener('click', async () => {
       const yes = await confirmDialog({
         title: `¿Eliminar “${p.name}”?`,
         message: 'Se borrará de forma definitiva. Si solo quieres dejar de venderlo, mejor archívalo.',

@@ -12,6 +12,7 @@ import { emptyState, toast, deltaHtml } from './components.js';
 import { escapeHtml, money, formatDateTime, formatDay } from './utilities.js';
 import { barChartSvg, rankBarsHtml } from './charts.js';
 import { getPendingUpdate, downloadUpdate } from './updates.js';
+import { getPermissionContext } from './permissions.js';
 
 const LABELS = {
   day: { now: 'hoy', versus: 'vs. ayer', chart: 'Ventas por hora' },
@@ -31,6 +32,23 @@ let onUpdateAvailable = null;
 
 export async function render(container) {
   root = container;
+  const access = await getPermissionContext();
+  if (access.role === 'cashier' || access.role === 'unknown') {
+    destroy();
+    const products = await catalog.listProducts();
+    root.innerHTML = `
+      <header class="page-head dash-head row between">
+        <div><h1>Inicio</h1><p class="muted">${escapeHtml(getConfig().business.name)}</p></div>
+      </header>
+      <section class="card stack">
+        <h2>Bienvenido</h2>
+        <p class="muted">Desde aquí puedes comenzar una venta y consultar los productos disponibles.</p>
+        <div class="row"><a class="btn btn-primary" href="#/ventas">Nueva venta</a></div>
+        <p class="muted small">Productos disponibles: <strong>${products.filter((p) => p.active).length}</strong></p>
+      </section>`;
+    mountDemoBanner(root, () => render(root));
+    return;
+  }
   const cfg = getConfig();
   expensesOn = true; // Gastos ya no es un módulo del menú: siempre se incluyen
   const [allSales, products, cats, expenses, expenseCats] = await Promise.all([

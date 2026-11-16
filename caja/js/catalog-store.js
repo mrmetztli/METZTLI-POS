@@ -3,6 +3,7 @@
 // catalog.js y categories.js solo dibujan y llaman a estas funciones.
 import * as db from './database.js';
 import { uid } from './utilities.js';
+import { getPermissionContext, getAuditActor, requireOwner, requirePermission } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
@@ -10,7 +11,7 @@ export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 10
 // Historial de operaciones (tabla "audit"). Si falla, no bloquea el guardado.
 async function audit(action, entity, entityId, summary) {
   try {
-    await db.put('audit', { id: uid(), at: nowIso(), action, entity, entityId, summary });
+    await db.put('audit', { id: uid(), at: nowIso(), action, entity, entityId, summary, ...await getAuditActor() });
   } catch (e) {
     console.warn('No se pudo registrar en el historial', e);
   }
@@ -24,6 +25,7 @@ export async function listCategories() {
 }
 
 export async function saveCategory(input) {
+  await requirePermission('products_edit');
   const name = String(input.name || '').trim();
   if (!name) throw new Error('Escribe el nombre de la categoría.');
   const all = await listCategories();
@@ -50,6 +52,7 @@ export async function saveCategory(input) {
 }
 
 export async function moveCategory(id, direction) {
+  await requirePermission('products_edit');
   const all = await listCategories();
   const i = all.findIndex((c) => c.id === id);
   const j = i + direction;
@@ -60,6 +63,7 @@ export async function moveCategory(id, direction) {
 }
 
 export async function setCategoryHidden(id, hidden) {
+  await requirePermission('products_edit');
   const cat = await db.get('categories', id);
   if (!cat) throw new Error('La categoría ya no existe.');
   await db.put('categories', { ...cat, hidden: !!hidden, updatedAt: nowIso() });
@@ -67,6 +71,7 @@ export async function setCategoryHidden(id, hidden) {
 }
 
 export async function deleteCategory(id) {
+  await requirePermission('products_edit');
   const products = await db.getAll('products');
   const n = products.filter((p) => p.categoryId === id).length;
   if (n) {
@@ -79,7 +84,12 @@ export async function deleteCategory(id) {
 
 /* ============ Productos y servicios ============ */
 
-export const listProducts = () => db.getAll('products');
+export async function listProducts() {
+  const products = await db.getAll('products');
+  const access = await getPermissionContext();
+  if (access.role === 'owner') return products;
+  return products.map(({ cost, ...product }) => product);
+}
 
 export const isLowStock = (p) => !!p.trackStock && p.type === 'product' && p.stock <= p.minStock;
 
@@ -110,7 +120,7 @@ export async function saveProduct(input) {
     if (!Number.isFinite(minStock) || minStock < 0) throw new Error('Las existencias mínimas deben ser un número de 0 o más.');
   }
 
-  const all = await listProducts();
+  const all = await db.getAll('products');
   const sku = String(input.sku || '').trim();
   if (sku && all.some((p) => p.id !== input.id && String(p.sku).toLowerCase() === sku.toLowerCase())) {
     throw new Error('Ya existe otro producto con ese SKU o código interno.');
@@ -118,6 +128,27 @@ export async function saveProduct(input) {
 
   const existing = input.id ? all.find((p) => p.id === input.id) : null;
   if (input.id && !existing) throw new Error('El producto ya no existe.');
+
+  const access = await getPermissionContext();
+  if (!existing) {
+    await requirePermission('products_create');
+    if (access.role === 'cashier') cost = null;
+    else if (access.role !== 'owner') throw new Error('No se pudo verificar tu rol. Esta acción está bloqueada.');
+  } else if (access.role !== 'owner') {
+    if (access.role !== 'cashier') throw new Error('No se pudo verificar tu rol. Esta acción está bloqueada.');
+    if (!['products_edit', 'prices_edit', 'stock_adjust'].some((key) => access.permissions[key])) throw new Error('No tienes permisos para editar este producto.');
+    const metadataChanged = ['name', 'description', 'sku', 'barcode', 'categoryId', 'type', 'unit', 'image', 'quick', 'featured', 'color']
+      .some((key) => String(input[key] ?? (key === 'image' ? '' : '')) !== String(existing[key] ?? (key === 'image' ? '' : '')));
+    if (metadataChanged) await requirePermission('products_edit');
+    if (round2(input.price) !== round2(existing.price)) await requirePermission('prices_edit');
+    if (Number(input.stock ?? 0) !== Number(existing.stock ?? 0) || Number(input.minStock ?? 0) !== Number(existing.minStock ?? 0) || !!input.trackStock !== !!existing.trackStock) {
+      await requirePermission('stock_adjust');
+    }
+    if (input.cost !== '' && input.cost != null && round2(input.cost) !== round2(existing.cost ?? 0)) {
+      throw new Error('Solo el propietario puede consultar o modificar el costo de compra.');
+    }
+    cost = existing.cost ?? null;
+  }
 
   const image = typeof input.image === 'string' && input.image.startsWith('data:image/') ? input.image : null;
   const rec = {
@@ -149,10 +180,13 @@ export async function saveProduct(input) {
 }
 
 export async function duplicateProduct(id) {
+  await requirePermission('products_create');
+  const access = await getPermissionContext();
   const src = await db.get('products', id);
   if (!src) throw new Error('El producto ya no existe.');
   const copy = {
     ...src,
+    cost: access.role === 'owner' ? src.cost : null,
     id: uid(),
     name: `${src.name} (copia)`.slice(0, 80),
     sku: '',
@@ -167,6 +201,7 @@ export async function duplicateProduct(id) {
 }
 
 export async function setProductActive(id, active) {
+  await requireOwner();
   const p = await db.get('products', id);
   if (!p) throw new Error('El producto ya no existe.');
   await db.put('products', { ...p, active: !!active, updatedAt: nowIso() });
@@ -175,6 +210,7 @@ export async function setProductActive(id, active) {
 
 // Eliminar solo es seguro si ninguna venta lo usa; si no, se debe archivar.
 export async function deleteProduct(id) {
+  await requireOwner();
   const sales = await db.getAll('sales');
   const used = sales.some((s) => (s.items || []).some((i) => i.productId === id));
   if (used) {
@@ -223,6 +259,7 @@ export function orderQuick(products, order = []) {
 
 // Agrega o quita un producto de los botones de venta rápida (el orden se guarda en la configuración del catálogo).
 export async function setQuick(id, quick) {
+  await requirePermission('products_edit');
   const p = await db.get('products', id);
   if (!p) throw new Error('El producto ya no existe.');
   await db.put('products', { ...p, quick: !!quick, updatedAt: nowIso() });

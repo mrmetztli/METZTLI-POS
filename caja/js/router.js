@@ -3,6 +3,7 @@
 import { getConfig, subscribe } from './state.js';
 import { icon } from './components.js';
 import { escapeHtml } from './utilities.js';
+import { getPermissionContext } from './permissions.js';
 
 // Para agregar un módulo nuevo: crea su archivo y regístralo aquí y en state.js (DEFAULT_CONFIG.modules).
 const LOADERS = {
@@ -39,20 +40,17 @@ export async function renderNav() {
   const active = currentGroup();
   const name = getConfig().business.name || 'Mi negocio';
 
-  // Cargar rol (si no hay sesión = dueño local, ve todo)
-  let role = null;
-  try {
-    const { getCurrentRole } = await import('./auth-ui.js');
-    role = await getCurrentRole();
-  } catch {}
-
-  // Cajeros solo ven Inicio y Ventas
-  const allowed = role === 'cashier'
-    ? GROUPS.filter(g => g.id === 'ventas' || g.id === 'inicio')
+  const access = await getPermissionContext();
+  const role = access.role;
+  const canOpenCatalog = ['catalog_view', 'products_create', 'products_edit', 'prices_edit', 'stock_adjust'].some((key) => access.permissions[key]);
+  const canOpenClients = access.permissions.clients_manage === true;
+  const allowed = role === 'cashier' || role === 'unknown'
+    ? GROUPS.filter((g) => g.id === 'ventas' || g.id === 'inicio' ||
+      g.id === 'configuracion')
     : GROUPS;
 
   const links = allowed.map((g) => `
-    <a class="nav-link ${g.id === active.id ? 'is-group-active' : ''}" href="#/${g.id}" ${g.id === active.id ? 'aria-current="page"' : ''}>
+    <a class="nav-link ${g.id === active.id ? 'is-group-active' : ''}" href="${g.id === 'configuracion' && (role === 'cashier' || role === 'unknown') ? '#/configuracion?s=' + (canOpenCatalog ? 'catalog' : canOpenClients ? 'clients' : 'account') : '#/' + g.id}" ${g.id === active.id ? 'aria-current="page"' : ''}>
       ${icon(g.icon)}<span>${g.label}</span>
     </a>`).join('');
 
@@ -78,15 +76,19 @@ async function show() {
   const view = document.getElementById('view');
   const mine = ++token;
 
-  // Protección de roles: cajero no puede entrar a secciones prohibidas
-  try {
-    const { getCurrentRole } = await import('./auth-ui.js');
-    const role = await getCurrentRole();
-    if (role === 'cashier' && !['ventas', 'inicio'].includes(group.id)) {
-      location.replace('#/ventas');
-      return;
+  // Protección de rutas: se limita el acceso de cajeros a los permisos asignados.
+  const access = await getPermissionContext();
+  if (access.role === 'cashier' || access.role === 'unknown') {
+    let allowed = ['ventas', 'inicio'].includes(group.id);
+    if (group.id === 'configuracion' && (access.role === 'cashier' || access.role === 'unknown')) {
+      const section = new URLSearchParams(route.split('?')[1] || '').get('s') || 'business';
+      const catalogAccess = ['catalog_view', 'products_create', 'products_edit', 'prices_edit', 'stock_adjust'].some((key) => access.permissions[key]);
+      allowed = section === 'account' ||
+        (section === 'catalog' && catalogAccess) ||
+        (section === 'clients' && access.permissions.clients_manage === true);
     }
-  } catch {}
+    if (!allowed) { location.replace('#/ventas'); return; }
+  }
 
   await renderNav();
 

@@ -9,6 +9,7 @@ import { escapeHtml, money, uid } from './utilities.js';
 import { askPayment } from './checkout.js';
 import { printTicket } from './tickets.js';
 import { openBarcodeScanner } from './barcode-scan.js';
+import { getPermissionContext } from './permissions.js';
 
 const round3 = (n) => Math.round(n * 1000) / 1000;
 const newCart = () => ({ id: uid(), lines: [], discount: { type: 'percent', value: '' }, customer: '', notes: '' });
@@ -20,15 +21,17 @@ let root = null;
 let products = [];
 let cats = [];
 let busy = false;
+let access = { role: 'owner', permissions: {} };
 
 async function load() {
-  [products, cats] = await Promise.all([catalog.listProducts(), catalog.listCategories()]);
+  [products, cats, access] = await Promise.all([catalog.listProducts(), catalog.listCategories(), getPermissionContext()]);
   products = products.filter((p) => p.active);
 }
 
 export async function render(container) {
   root = container;
   await load();
+  if (ui.tab === 'cancel' && (!(access.role === 'owner' || access.permissions.cancel_sales) || !getConfig().sales.cancelEnabled)) ui.tab = 'sell';
   draw();
 }
 
@@ -47,6 +50,7 @@ function drawScreen() {
       <div class="seg" role="group" aria-label="Sección">
         <button type="button" data-tab="sell" aria-pressed="${ui.tab === 'sell'}">Nueva venta</button>
         <button type="button" data-tab="free" aria-pressed="${ui.tab === 'free'}">Venta libre</button>
+        ${(access.role === 'owner' || access.permissions.cancel_sales) && getConfig().sales.cancelEnabled ? `<button type="button" data-tab="cancel" aria-pressed="${ui.tab === 'cancel'}">Cancelar venta</button>` : ''}
       </div>
     </header><div id="tab"></div>`;
   root.querySelector('.seg').addEventListener('click', async (e) => {
@@ -58,7 +62,54 @@ function drawScreen() {
   });
   const host = root.querySelector('#tab');
   if (ui.tab === 'free') drawFree(host);
+  else if (ui.tab === 'cancel') drawCancel(host);
   else drawSell(host);
+}
+
+/* ---------- Cancelación por folio (sin mostrar el historial) ---------- */
+
+function drawCancel(host) {
+  host.innerHTML = `
+    <section class="card stack" style="max-width:560px">
+      <h2>Cancelar una venta</h2>
+      <p class="muted">Escribe el folio exacto de la venta que necesitas cancelar. Esta pantalla no muestra el historial completo.</p>
+      <form id="cancel-sale-form" class="stack">
+        <div class="field">
+          <label for="cancel-sale-folio">Folio de venta</label>
+          <input id="cancel-sale-folio" class="input" maxlength="50" placeholder="Ej. V-0001" required>
+        </div>
+        <div class="field">
+          <label for="cancel-sale-reason">Motivo de cancelación</label>
+          <textarea id="cancel-sale-reason" class="input textarea" rows="3" maxlength="300" placeholder="Explica por qué se cancela esta venta" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-danger" id="cancel-sale-submit">Cancelar venta</button>
+      </form>
+      <p class="muted small">La operación queda registrada y las existencias se restauran cuando corresponde. No se puede deshacer.</p>
+    </section>`;
+  host.querySelector('#cancel-sale-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = host.querySelector('#cancel-sale-submit');
+    const folio = host.querySelector('#cancel-sale-folio').value.trim();
+    const reason = host.querySelector('#cancel-sale-reason').value.trim();
+    if (reason.length < 3) { toast('Escribe un motivo de al menos 3 caracteres.', 'error'); return; }
+    const yes = await confirmDialog({
+      title: `¿Cancelar la venta ${folio}?`,
+      message: 'La venta quedará cancelada y se restaurarán las existencias cuando corresponda. Esta acción no se puede deshacer.',
+      confirmText: 'Sí, cancelar venta',
+      danger: true
+    });
+    if (!yes) return;
+    button.disabled = true;
+    try {
+      const rules = getConfig().sales;
+      const result = await store.cancelSaleByFolio(folio, reason, { enabled: rules.cancelEnabled, maxDays: rules.cancelDays });
+      toast(`Venta ${result.folio} cancelada correctamente`, 'ok');
+      host.querySelector('#cancel-sale-folio').value = '';
+      host.querySelector('#cancel-sale-reason').value = '';
+    } catch (error) {
+      await openModal({ title: 'No se pudo cancelar la venta', message: error.message });
+    } finally { button.disabled = false; }
+  });
 }
 
 /* ---------- Vender ---------- */
@@ -423,7 +474,7 @@ function drawCart() {
     const priceLabel = `${money(l.unitPrice)}${p.unit && !['pieza', 'servicio'].includes(p.unit) ? ` / ${escapeHtml(p.unit)}` : ''}`;
     return `<div class="cline" data-id="${l.productId}">
       <div class="cline-main"><strong>${escapeHtml(p.name)}</strong>
-        ${cfg.sales.priceEdit === 'allow'
+        ${cfg.sales.priceEdit === 'allow' && (access.role === 'owner' || access.permissions.prices_edit)
           ? `<button type="button" class="linkbtn" data-act="price">${priceLabel}</button>`
           : `<span class="muted">${priceLabel}</span>`}
         ${modified ? '<span class="badge">Precio modificado</span>' : ''}</div>
@@ -442,7 +493,7 @@ function drawCart() {
     ${empty ? '<p class="muted cart-empty">Toca un producto para agregarlo.</p>' : lines}
     <div class="cart-totals">
       <div class="ln"><span>Subtotal</span><span>${money(t.subtotal)}</span></div>
-      ${cfg.sales.discountsEnabled ? `<div class="ln"><span>Descuento</span><span class="row" style="gap:6px">
+      ${(cfg.sales.discountsEnabled && (access.role === 'owner' || access.permissions.discounts)) ? `<div class="ln"><span>Descuento</span><span class="row" style="gap:6px">
         <select data-f="dtype" class="input mini" aria-label="Tipo de descuento">
           <option value="percent" ${cart.discount.type === 'percent' ? 'selected' : ''}>%</option>
           <option value="amount" ${cart.discount.type === 'amount' ? 'selected' : ''}>$</option></select>

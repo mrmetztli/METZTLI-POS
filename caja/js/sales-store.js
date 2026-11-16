@@ -4,6 +4,7 @@
 import * as db from './database.js';
 import { uid } from './utilities.js';
 import { round2 } from './catalog-store.js';
+import { getAuditActor, getPermissionContext, requirePermission, requireOwner } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 const cents = (n) => Math.round(Number(n) * 100);
@@ -64,6 +65,7 @@ export function formatFolio(format, n, date = new Date(), timeZone = 'America/Me
 }
 
 export async function listSales() {
+  await requireOwner();
   const all = await db.getAll('sales');
   return all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
@@ -77,6 +79,7 @@ export async function createSale(input, config) {
   if (!input.lines?.length) throw new Error('Agrega al menos un artículo a la venta.');
   const sales = config.sales;
   const discountValue = Number(input.discount?.value) || 0;
+  if (discountValue > 0) await requirePermission('discounts');
   if (!sales.discountsEnabled && discountValue > 0) throw new Error('Los descuentos están desactivados en Configuración.');
 
   const [products, categories] = await Promise.all([db.getAll('products'), db.getAll('categories')]);
@@ -116,6 +119,7 @@ export async function createSale(input, config) {
     if (!(qty > 0)) throw new Error(`Cantidad inválida en “${p.name}”.`);
     const unitPrice = Number(l.unitPrice);
     if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error(`Precio inválido en “${p.name}”.`);
+    if (round2(unitPrice) !== round2(p.price)) await requirePermission('prices_edit');
     if (sales.priceEdit === 'deny' && round2(unitPrice) !== p.price) {
       throw new Error('Cambiar precios está desactivado en Configuración.');
     }
@@ -166,13 +170,27 @@ export async function createSale(input, config) {
     const p = products.find((x) => x.id === productId);
     if (p.trackStock) ops.push({ store: 'products', op: 'put', record: { ...p, stock: round3(p.stock - qty) } });
   }
-  ops.push({ store: 'audit', op: 'put', record: { id: uid(), at: createdAt, action: 'crear', entity: 'venta', entityId: id, summary: `${sale.folio} · ${sale.total}` } });
+  ops.push({ store: 'audit', op: 'put', record: { id: uid(), at: createdAt, action: 'crear', entity: 'venta', entityId: id, summary: `${sale.folio} · ${sale.total}`, ...await getAuditActor() } });
   await db.batch(ops);
-  return sale;
+  const access = await getPermissionContext();
+  if (access.role === 'owner') return sale;
+  return { ...sale, items: sale.items.map(({ cost, ...item }) => item) };
 }
 
 // rules: { enabled, maxDays } (de Configuración). Sin reglas, se permite cancelar.
+export async function cancelSaleByFolio(folio, reason, rules = {}) {
+  await requirePermission('cancel_sales');
+  const cleanFolio = String(folio || '').trim().toLowerCase();
+  if (!cleanFolio) throw new Error('Escribe el folio de la venta.');
+  const all = await db.getAll('sales');
+  const sale = all.find((item) => String(item.folio || '').trim().toLowerCase() === cleanFolio);
+  if (!sale) throw new Error('No se encontró una venta con ese folio.');
+  await cancelSale(sale.id, reason, rules);
+  return { folio: sale.folio };
+}
+
 export async function cancelSale(id, reason, rules = {}) {
+  await requirePermission('cancel_sales');
   const text = String(reason || '').trim();
   if (text.length < 3) throw new Error('Escribe el motivo de la cancelación (mínimo 3 caracteres).');
   const sale = await db.get('sales', id);
@@ -193,6 +211,6 @@ export async function cancelSale(id, reason, rules = {}) {
     const p = products.find((x) => x.id === productId);
     if (p?.trackStock) ops.push({ store: 'products', op: 'put', record: { ...p, stock: round3(p.stock + qty) } });
   }
-  ops.push({ store: 'audit', op: 'put', record: { id: uid(), at, action: 'cancelar', entity: 'venta', entityId: id, summary: `${sale.folio} · ${text}` } });
+  ops.push({ store: 'audit', op: 'put', record: { id: uid(), at, action: 'cancelar', entity: 'venta', entityId: id, summary: `${sale.folio} · ${text}`, ...await getAuditActor() } });
   await db.batch(ops);
 }

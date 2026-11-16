@@ -128,7 +128,7 @@ export async function getInvites() {
 
 export async function getMembers() {
   const membership = await getMyMembership();
-  if (!membership) return [];
+  if (!membership || membership.role !== 'owner') throw new Error('Solo el propietario puede consultar el equipo.');
 
   const { data, error } = await supabase
     .from('business_members')
@@ -137,6 +137,28 @@ export async function getMembers() {
 
   if (error) throw error;
   return data || [];
+}
+
+export async function updateCashierPermissions(memberId, permissions) {
+  const membership = await getMyMembership();
+  if (!membership || membership.role !== 'owner') {
+    throw new Error('Solo el propietario puede modificar permisos.');
+  }
+  const allowed = ['catalog_view', 'products_create', 'products_edit', 'prices_edit', 'stock_adjust', 'discounts', 'cancel_sales', 'clients_manage'];
+  const clean = {};
+  for (const key of allowed) clean[key] = permissions?.[key] === true;
+
+  const { data, error } = await supabase
+    .from('business_members')
+    .update({ permissions: clean })
+    .eq('id', memberId)
+    .eq('business_id', membership.business_id)
+    .eq('role', 'cashier')
+    .select('id, role, permissions')
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 // Cuando alguien inicia sesión, revisamos si tiene invitación pendiente
@@ -181,6 +203,7 @@ export async function uploadBackup(backupObject) {
   const user = await getUser();
   const membership = await getMyMembership();
   if (!user || !membership) throw new Error('No hay sesión o negocio');
+  if (membership.role !== 'owner') throw new Error('Solo el propietario puede crear respaldos.');
 
   const { error } = await supabase
     .from('backups')
@@ -197,6 +220,7 @@ export async function uploadBackup(backupObject) {
 export async function getLatestBackup() {
   const membership = await getMyMembership();
   if (!membership) return null;
+  if (membership.role !== 'owner') throw new Error('Solo el propietario puede consultar respaldos.');
 
   const { data, error } = await supabase
     .from('backups')

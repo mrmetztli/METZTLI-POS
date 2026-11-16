@@ -3,14 +3,20 @@ import * as store from './clients-store.js';
 import * as salesStore from './sales-store.js';
 import { pageHeader, emptyState, toast, confirmDialog, openModal } from './components.js';
 import { escapeHtml, money, formatDateTime } from './utilities.js';
+import { getPermissionContext } from './permissions.js';
 
 const ui = { view: 'list', clientId: null, search: '' };
 let root = null;
 let clients = [];
 let sales = [];
+let access = { role: 'owner' };
 
 async function load() {
-  const [saved, allSales] = await Promise.all([store.listClients(), salesStore.listSales()]);
+  access = await getPermissionContext();
+  const [saved, allSales] = await Promise.all([
+    store.listClients(),
+    access.role === 'owner' ? salesStore.listSales() : Promise.resolve([])
+  ]);
   sales = allSales;
   clients = store.buildClientDirectory(saved, allSales);
 }
@@ -40,7 +46,7 @@ function filtered() {
 function drawList() {
   const list = filtered();
   root.innerHTML = `
-    ${pageHeader('Clientes', 'Historial de compras por nombre y teléfono')}
+    ${pageHeader('Clientes', access.role === 'owner' ? 'Historial de compras por nombre y teléfono' : 'Directorio de clientes')}
     <div class="toolbar no-print">
       <input class="input grow" id="cl-q" type="search" placeholder="Buscar por nombre o teléfono" aria-label="Buscar cliente" value="${escapeHtml(ui.search)}">
       <button type="button" class="btn btn-primary" id="cl-new">Nuevo cliente</button>
