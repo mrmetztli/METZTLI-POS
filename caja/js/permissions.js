@@ -1,6 +1,5 @@
 // permissions.js — permisos de acceso para propietarios y cajeros.
-import * as cloud from './supabase.js';
-
+// Supabase se carga de forma diferida para que el modo local no dependa de Internet.
 export const PERMISSION_DEFS = {
   catalog_view: { label: 'Consultar catálogo', risk: 'Permite abrir el catálogo y consultar productos y existencias.' },
   products_create: { label: 'Agregar productos', risk: 'Permite crear productos y servicios nuevos en el inventario.' },
@@ -12,21 +11,60 @@ export const PERMISSION_DEFS = {
   clients_manage: { label: 'Gestionar clientes', risk: 'Permite consultar, crear y modificar datos de clientes.' }
 };
 
+const STORAGE_KEY = 'metztli-caja-access-context';
 const OWNER_PERMISSIONS = Object.keys(PERMISSION_DEFS).reduce((out, key) => ({ ...out, [key]: true }), {});
 let cached = null;
 let cachedAt = 0;
+let cloudPromise = null;
 
-export function invalidatePermissionContext() {
+async function getCloud() {
+  if (!cloudPromise) cloudPromise = import('./supabase.js').catch(() => null);
+  return cloudPromise;
+}
+
+function readStoredContext() {
+  try {
+    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (value?.role === 'cashier' && value.permissions) {
+      return { role: 'cashier', permissions: Object.fromEntries(Object.keys(PERMISSION_DEFS).map((key) => [key, value.permissions[key] === true])), local: false, membership: value.membership || null };
+    }
+  } catch {}
+  return null;
+}
+
+function persistContext(context) {
+  if (context.role !== 'cashier' && context.role !== 'owner') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      role: context.role,
+      permissions: context.permissions,
+      membership: context.membership ? { user_id: context.membership.user_id, business_id: context.membership.business_id } : null
+    }));
+  } catch {}
+}
+
+export function invalidatePermissionContext(clearStored = false) {
   cached = null;
   cachedAt = 0;
+  if (clearStored) {
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  }
 }
 
 export async function getPermissionContext(force = false) {
   if (!force && cached && Date.now() - cachedAt < 15000) return cached;
 
+  const cloud = await getCloud();
+  if (!cloud) {
+    cached = readStoredContext() || { role: 'owner', permissions: OWNER_PERMISSIONS, local: true, membership: null };
+    cachedAt = Date.now();
+    return cached;
+  }
+
   let session = null;
   try { session = await cloud.getSession(); } catch {}
   if (!session) {
+    invalidatePermissionContext(true);
     cached = { role: 'owner', permissions: OWNER_PERMISSIONS, local: true, membership: null };
     cachedAt = Date.now();
     return cached;
@@ -44,8 +82,9 @@ export async function getPermissionContext(force = false) {
     } else {
       cached = { role: 'unknown', permissions: {}, local: false, membership };
     }
+    persistContext(cached);
   } catch (error) {
-    cached = { role: 'unknown', permissions: {}, local: false, membership: null, error };
+    cached = readStoredContext() || { role: 'unknown', permissions: {}, local: false, membership: null, error };
   }
   cachedAt = Date.now();
   return cached;
