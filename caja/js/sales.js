@@ -92,6 +92,13 @@ function drawCancel(host) {
     const folio = host.querySelector('#cancel-sale-folio').value.trim();
     const reason = host.querySelector('#cancel-sale-reason').value.trim();
     if (reason.length < 3) { toast('Escribe un motivo de al menos 3 caracteres.', 'error'); return; }
+    const yes = await confirmDialog({
+      title: `¿Cancelar la venta ${folio}?`,
+      message: 'La venta quedará cancelada y se restaurarán las existencias cuando corresponda. Esta acción no se puede deshacer.',
+      confirmText: 'Sí, cancelar venta',
+      danger: true
+    });
+    if (!yes) return;
     button.disabled = true;
     try {
       const rules = getConfig().sales;
