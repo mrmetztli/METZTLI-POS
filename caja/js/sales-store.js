@@ -118,6 +118,7 @@ export async function createSale(input, config) {
     if (!(qty > 0)) throw new Error(`Cantidad inválida en “${p.name}”.`);
     const unitPrice = Number(l.unitPrice);
     if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error(`Precio inválido en “${p.name}”.`);
+    if (round2(unitPrice) !== round2(p.price)) await requirePermission('prices_edit');
     if (sales.priceEdit === 'deny' && round2(unitPrice) !== p.price) {
       throw new Error('Cambiar precios está desactivado en Configuración.');
     }
