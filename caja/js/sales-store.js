@@ -4,7 +4,7 @@
 import * as db from './database.js';
 import { uid } from './utilities.js';
 import { round2 } from './catalog-store.js';
-import { getAuditActor, requirePermission, requireOwner } from './permissions.js';
+import { getAuditActor, getPermissionContext, requirePermission, requireOwner } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 const cents = (n) => Math.round(Number(n) * 100);
@@ -172,7 +172,9 @@ export async function createSale(input, config) {
   }
   ops.push({ store: 'audit', op: 'put', record: { id: uid(), at: createdAt, action: 'crear', entity: 'venta', entityId: id, summary: `${sale.folio} · ${sale.total}`, ...await getAuditActor() } });
   await db.batch(ops);
-  return sale;
+  const access = await getPermissionContext();
+  if (access.role === 'owner') return sale;
+  return { ...sale, items: sale.items.map(({ cost, ...item }) => item) };
 }
 
 // rules: { enabled, maxDays } (de Configuración). Sin reglas, se permite cancelar.
@@ -184,7 +186,7 @@ export async function cancelSaleByFolio(folio, reason, rules = {}) {
   const sale = all.find((item) => String(item.folio || '').trim().toLowerCase() === cleanFolio);
   if (!sale) throw new Error('No se encontró una venta con ese folio.');
   await cancelSale(sale.id, reason, rules);
-  return { folio: sale.folio, total: sale.total };
+  return { folio: sale.folio };
 }
 
 export async function cancelSale(id, reason, rules = {}) {
