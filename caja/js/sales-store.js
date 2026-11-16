@@ -4,6 +4,7 @@
 import * as db from './database.js';
 import { uid } from './utilities.js';
 import { round2 } from './catalog-store.js';
+import { requirePermission } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 const cents = (n) => Math.round(Number(n) * 100);
@@ -77,6 +78,7 @@ export async function createSale(input, config) {
   if (!input.lines?.length) throw new Error('Agrega al menos un artículo a la venta.');
   const sales = config.sales;
   const discountValue = Number(input.discount?.value) || 0;
+  if (discountValue > 0) await requirePermission('discounts');
   if (!sales.discountsEnabled && discountValue > 0) throw new Error('Los descuentos están desactivados en Configuración.');
 
   const [products, categories] = await Promise.all([db.getAll('products'), db.getAll('categories')]);
@@ -173,6 +175,7 @@ export async function createSale(input, config) {
 
 // rules: { enabled, maxDays } (de Configuración). Sin reglas, se permite cancelar.
 export async function cancelSale(id, reason, rules = {}) {
+  await requirePermission('cancel_sales');
   const text = String(reason || '').trim();
   if (text.length < 3) throw new Error('Escribe el motivo de la cancelación (mínimo 3 caracteres).');
   const sale = await db.get('sales', id);
