@@ -176,6 +176,17 @@ export async function createSale(input, config) {
 }
 
 // rules: { enabled, maxDays } (de Configuración). Sin reglas, se permite cancelar.
+export async function cancelSaleByFolio(folio, reason, rules = {}) {
+  await requirePermission('cancel_sales');
+  const cleanFolio = String(folio || '').trim().toLowerCase();
+  if (!cleanFolio) throw new Error('Escribe el folio de la venta.');
+  const all = await db.getAll('sales');
+  const sale = all.find((item) => String(item.folio || '').trim().toLowerCase() === cleanFolio);
+  if (!sale) throw new Error('No se encontró una venta con ese folio.');
+  await cancelSale(sale.id, reason, rules);
+  return { folio: sale.folio, total: sale.total };
+}
+
 export async function cancelSale(id, reason, rules = {}) {
   await requirePermission('cancel_sales');
   const text = String(reason || '').trim();
