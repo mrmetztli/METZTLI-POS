@@ -3,7 +3,7 @@
 // catalog.js y categories.js solo dibujan y llaman a estas funciones.
 import * as db from './database.js';
 import { uid } from './utilities.js';
-import { getPermissionContext, getAuditActor, requirePermission } from './permissions.js';
+import { getPermissionContext, getAuditActor, requireOwner, requirePermission } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
@@ -201,7 +201,7 @@ export async function duplicateProduct(id) {
 }
 
 export async function setProductActive(id, active) {
-  await requirePermission('products_edit');
+  await requireOwner();
   const p = await db.get('products', id);
   if (!p) throw new Error('El producto ya no existe.');
   await db.put('products', { ...p, active: !!active, updatedAt: nowIso() });
@@ -210,7 +210,7 @@ export async function setProductActive(id, active) {
 
 // Eliminar solo es seguro si ninguna venta lo usa; si no, se debe archivar.
 export async function deleteProduct(id) {
-  await requirePermission('products_edit');
+  await requireOwner();
   const sales = await db.getAll('sales');
   const used = sales.some((s) => (s.items || []).some((i) => i.productId === id));
   if (used) {
