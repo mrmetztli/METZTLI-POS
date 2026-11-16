@@ -11,6 +11,7 @@ import * as expensesCfg from './settings-expenses.js';
 import * as data from './settings-data.js';
 import { renderAccountSection } from './auth-ui.js';
 import { escapeHtml } from './utilities.js';
+import { getPermissionContext } from './permissions.js';
 
 const SECTIONS = [
   ['business', 'Negocio'], ['catalog', 'Catálogo'], ['sales', 'Ventas'], ['expenses', 'Gastos'], ['appearance', 'Personalización'],
@@ -65,13 +66,20 @@ const BUILDERS = {
   }
 };
 
-export function render(root) {
+export async function render(root) {
+  const access = await getPermissionContext();
+  const isCashier = access.role === 'cashier' || access.role === 'unknown';
+  const catalogAccess = ['catalog_view', 'products_create', 'products_edit', 'prices_edit', 'stock_adjust'].some((key) => access.permissions[key]);
+  const visibleSections = isCashier
+    ? SECTIONS.filter(([key]) => key === 'account' || (key === 'catalog' && catalogAccess) || (key === 'clients' && access.permissions.clients_manage === true))
+    : SECTIONS;
   const wanted = sectionFromHash();
-  if (wanted && SECTIONS.some(([k]) => k === wanted)) ui.section = wanted;
+  if (wanted && visibleSections.some(([k]) => k === wanted)) ui.section = wanted;
+  if (!visibleSections.some(([k]) => k === ui.section)) ui.section = visibleSections[0]?.[0] || 'account';
   root.innerHTML = pageHeader('Configuración', 'Ajusta tu negocio, tu catálogo, tus clientes y tus datos') + `
     <div class="set-layout">
       <nav class="set-nav" id="set-nav" aria-label="Secciones de Configuración">
-        ${SECTIONS.map(([k, l]) => `<button type="button" class="set-link" data-sec="${k}" aria-current="${k === ui.section ? 'page' : 'false'}">${l}</button>`).join('')}
+        ${visibleSections.map(([k, l]) => `<button type="button" class="set-link" data-sec="${k}" aria-current="${k === ui.section ? 'page' : 'false'}">${l}</button>`).join('')}
       </nav>
       <div class="set-body" id="set-body"></div>
     </div>`;
