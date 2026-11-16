@@ -64,8 +64,7 @@ export async function getPermissionContext(force = false) {
   let session = null;
   try { session = await cloud.getSession(); } catch {}
   if (!session) {
-    invalidatePermissionContext(true);
-    cached = { role: 'owner', permissions: OWNER_PERMISSIONS, local: true, membership: null };
+    cached = readStoredContext() || { role: 'owner', permissions: OWNER_PERMISSIONS, local: true, membership: null };
     cachedAt = Date.now();
     return cached;
   }
