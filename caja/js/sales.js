@@ -31,7 +31,7 @@ async function load() {
 export async function render(container) {
   root = container;
   await load();
-  if (ui.tab === 'cancel' && access.role !== 'owner' && !access.permissions.cancel_sales) ui.tab = 'sell';
+  if (ui.tab === 'cancel' && (!(access.role === 'owner' || access.permissions.cancel_sales) || !getConfig().sales.cancelEnabled)) ui.tab = 'sell';
   draw();
 }
 
@@ -50,7 +50,7 @@ function drawScreen() {
       <div class="seg" role="group" aria-label="Sección">
         <button type="button" data-tab="sell" aria-pressed="${ui.tab === 'sell'}">Nueva venta</button>
         <button type="button" data-tab="free" aria-pressed="${ui.tab === 'free'}">Venta libre</button>
-        ${access.role === 'owner' || access.permissions.cancel_sales ? `<button type="button" data-tab="cancel" aria-pressed="${ui.tab === 'cancel'}">Cancelar venta</button>` : ''}
+        ${(access.role === 'owner' || access.permissions.cancel_sales) && getConfig().sales.cancelEnabled ? `<button type="button" data-tab="cancel" aria-pressed="${ui.tab === 'cancel'}">Cancelar venta</button>` : ''}
       </div>
     </header><div id="tab"></div>`;
   root.querySelector('.seg').addEventListener('click', async (e) => {
