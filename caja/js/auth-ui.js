@@ -18,7 +18,7 @@ export async function getCurrentPermissions() {
 }
 
 export async function isOwner() {
-  return (await getCurrentRole()) === 'owner';
+  return (await getPermissionContext()).role === 'owner';
 }
 
 export function renderAccountSection(host) {
@@ -57,6 +57,7 @@ async function loadAccountUI(box) {
         if (!email || !pass) return toast('Escribe correo y contraseña', 'error');
         try {
           await cloud.signIn(email, pass);
+          invalidatePermissionContext();
           await afterLogin();
           toast('Sesión iniciada', 'ok');
           currentMembership = null;
@@ -97,6 +98,7 @@ async function loadAccountUI(box) {
         const name = box.querySelector('#biz-name').value.trim() || 'Mi negocio';
         try {
           await cloud.createBusiness(name);
+          invalidatePermissionContext();
           await doCloudBackup();
           toast('Negocio creado y datos respaldados', 'ok');
           currentMembership = await cloud.getMyMembership();
