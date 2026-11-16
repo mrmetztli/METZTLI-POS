@@ -46,11 +46,11 @@ export async function renderNav() {
   const canOpenClients = access.permissions.clients_manage === true;
   const allowed = role === 'cashier' || role === 'unknown'
     ? GROUPS.filter((g) => g.id === 'ventas' || g.id === 'inicio' ||
-      (g.id === 'configuracion' && (canOpenCatalog || canOpenClients)))
+      g.id === 'configuracion')
     : GROUPS;
 
   const links = allowed.map((g) => `
-    <a class="nav-link ${g.id === active.id ? 'is-group-active' : ''}" href="#/${g.id}" ${g.id === active.id ? 'aria-current="page"' : ''}>
+    <a class="nav-link ${g.id === active.id ? 'is-group-active' : ''}" href="${g.id === 'configuracion' && (role === 'cashier' || role === 'unknown') ? '#/configuracion?s=' + (canOpenCatalog ? 'catalog' : canOpenClients ? 'clients' : 'account') : '#/' + g.id}" ${g.id === active.id ? 'aria-current="page"' : ''}>
       ${icon(g.icon)}<span>${g.label}</span>
     </a>`).join('');
 
