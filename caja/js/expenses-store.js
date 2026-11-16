@@ -6,7 +6,7 @@ import { uid } from './utilities.js';
 import { round2 } from './catalog-store.js';
 import { formatFolio } from './sales-store.js';
 import { dateKey } from './dashboard-store.js';
-import { requireOwner } from './permissions.js';
+import { getAuditActor, requireOwner } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 export const MAX_AMOUNT = 100000000;
@@ -172,7 +172,7 @@ export async function createExpense(input, config) {
   };
   await db.batch([
     { store: 'expenses', op: 'put', record: expense },
-    { store: 'audit', op: 'put', record: { id: uid(), at: createdAt, action: 'crear', entity: 'gasto', entityId: id, summary: `${expense.folio} · ${expense.concept} · ${expense.amount}` } }
+    { store: 'audit', op: 'put', record: { id: uid(), at: createdAt, action: 'crear', entity: 'gasto', entityId: id, summary: `${expense.folio} · ${expense.concept} · ${expense.amount}`, ...await getAuditActor() } }
   ]);
   return expense;
 }
@@ -187,7 +187,7 @@ export async function updateExpense(id, input, config) {
   const expense = { ...existing, ...fields, updatedAt };
   await db.batch([
     { store: 'expenses', op: 'put', record: expense },
-    { store: 'audit', op: 'put', record: { id: uid(), at: updatedAt, action: 'editar', entity: 'gasto', entityId: id, summary: `${existing.folio} · ${existing.amount} → ${expense.amount}` } }
+    { store: 'audit', op: 'put', record: { id: uid(), at: updatedAt, action: 'editar', entity: 'gasto', entityId: id, summary: `${existing.folio} · ${existing.amount} → ${expense.amount}`, ...await getAuditActor() } }
   ]);
   return expense;
 }
@@ -207,6 +207,6 @@ export async function cancelExpense(id, reason, rules = {}) {
   const at = nowIso();
   await db.batch([
     { store: 'expenses', op: 'put', record: { ...e, status: 'cancelled', cancelled: { at, reason: text }, updatedAt: at } },
-    { store: 'audit', op: 'put', record: { id: uid(), at, action: 'cancelar', entity: 'gasto', entityId: id, summary: `${e.folio} · ${text}` } }
+    { store: 'audit', op: 'put', record: { id: uid(), at, action: 'cancelar', entity: 'gasto', entityId: id, summary: `${e.folio} · ${text}`, ...await getAuditActor() } }
   ]);
 }
