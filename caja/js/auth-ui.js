@@ -82,7 +82,9 @@ async function loadAccountUI(box) {
     }
 
     // Hay sesión → intentar aceptar invitación pendiente
-    await cloud.acceptPendingInviteIfAny();
+    if (typeof cloud.acceptPendingInviteIfAny === 'function') {
+  await cloud.acceptPendingInviteIfAny();
+}
     currentMembership = await cloud.getMyMembership();
 
     if (!currentMembership) {
@@ -215,7 +217,9 @@ async function loadMembersAndInvites(box) {
 
 async function afterLogin() {
   try {
-    await cloud.acceptPendingInviteIfAny();
+    if (typeof cloud.acceptPendingInviteIfAny === 'function') {
+  await cloud.acceptPendingInviteIfAny();
+}
     const membership = await cloud.getMyMembership();
     if (membership) {
       await doCloudBackup();
