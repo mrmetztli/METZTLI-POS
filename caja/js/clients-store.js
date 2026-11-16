@@ -1,20 +1,24 @@
 // clients-store.js — clientes y agregados a partir de ventas.
 import * as db from './database.js';
 import { uid } from './utilities.js';
+import { requirePermission } from './permissions.js';
 
 const nowIso = () => new Date().toISOString();
 const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 export async function listClients() {
+  await requirePermission('clients_manage');
   const list = await db.getAll('clients');
   return list.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'));
 }
 
 export async function getClient(id) {
+  await requirePermission('clients_manage');
   return db.get('clients', id);
 }
 
 export async function saveClient(input) {
+  await requirePermission('clients_manage');
   const name = String(input.name || '').trim();
   if (name.length < 2) throw new Error('Escribe el nombre del cliente (mínimo 2 caracteres).');
   const phone = String(input.phone || '').trim();
@@ -35,6 +39,7 @@ export async function saveClient(input) {
 }
 
 export async function deleteClient(id) {
+  await requirePermission('clients_manage');
   const c = await db.get('clients', id);
   if (!c) throw new Error('Ese cliente ya no existe.');
   await db.remove('clients', id);
