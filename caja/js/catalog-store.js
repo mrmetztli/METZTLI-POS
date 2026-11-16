@@ -128,7 +128,7 @@ export async function saveProduct(input) {
   if (!existing) {
     await requirePermission('products_create');
   } else if (access.role === 'cashier') {
-    const metadataChanged = ['name', 'description', 'sku', 'barcode', 'categoryId', 'type', 'unit', 'image', 'quick', 'featured', 'active']
+    const metadataChanged = ['name', 'description', 'sku', 'barcode', 'categoryId', 'type', 'unit', 'image', 'quick', 'featured']
       .some((key) => String(input[key] ?? (key === 'image' ? '' : '')) !== String(existing[key] ?? (key === 'image' ? '' : '')));
     if (metadataChanged) await requirePermission('products_edit');
     if (round2(input.price) !== round2(existing.price)) await requirePermission('prices_edit');
