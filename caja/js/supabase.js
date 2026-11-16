@@ -139,6 +139,28 @@ export async function getMembers() {
   return data || [];
 }
 
+export async function updateCashierPermissions(memberId, permissions) {
+  const membership = await getMyMembership();
+  if (!membership || membership.role !== 'owner') {
+    throw new Error('Solo el propietario puede modificar permisos.');
+  }
+  const allowed = ['catalog_view', 'products_create', 'products_edit', 'prices_edit', 'stock_adjust', 'discounts', 'cancel_sales', 'clients_manage'];
+  const clean = {};
+  for (const key of allowed) clean[key] = permissions?.[key] === true;
+
+  const { data, error } = await supabase
+    .from('business_members')
+    .update({ permissions: clean })
+    .eq('id', memberId)
+    .eq('business_id', membership.business_id)
+    .eq('role', 'cashier')
+    .select('id, role, permissions')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 // Cuando alguien inicia sesión, revisamos si tiene invitación pendiente
 export async function acceptPendingInviteIfAny() {
   const user = await getUser();
