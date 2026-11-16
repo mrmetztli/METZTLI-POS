@@ -57,7 +57,7 @@ async function loadAccountUI(box) {
         if (!email || !pass) return toast('Escribe correo y contraseña', 'error');
         try {
           await cloud.signIn(email, pass);
-          invalidatePermissionContext();
+          invalidatePermissionContext(true);
           await afterLogin();
           toast('Sesión iniciada', 'ok');
           currentMembership = null;
@@ -98,7 +98,7 @@ async function loadAccountUI(box) {
         const name = box.querySelector('#biz-name').value.trim() || 'Mi negocio';
         try {
           await cloud.createBusiness(name);
-          invalidatePermissionContext();
+          invalidatePermissionContext(true);
           await doCloudBackup();
           toast('Negocio creado y datos respaldados', 'ok');
           currentMembership = await cloud.getMyMembership();
@@ -159,7 +159,7 @@ async function loadAccountUI(box) {
     box.querySelector('#btn-logout').onclick = async () => {
       await cloud.signOut();
       currentMembership = null;
-      invalidatePermissionContext();
+      invalidatePermissionContext(true);
       toast('Sesión cerrada', 'ok');
       loadAccountUI(box);
     };
