@@ -128,7 +128,7 @@ export async function getInvites() {
 
 export async function getMembers() {
   const membership = await getMyMembership();
-  if (!membership) return [];
+  if (!membership || membership.role !== 'owner') throw new Error('Solo el propietario puede consultar el equipo.');
 
   const { data, error } = await supabase
     .from('business_members')
